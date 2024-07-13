@@ -1,6 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 
 const Room = () => {
+  const { roomCode } = useParams();
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const [remoteUserConnected, setRemoteUserConnected] = useState(false);
@@ -8,26 +10,24 @@ const Room = () => {
   const [voiceMuted, setVoiceMuted] = useState(false);
   const [recording, setRecording] = useState(false);
   const [screenSharing, setScreenSharing] = useState(false);
-  const [roomNumber, setRoomNumber] = useState('123456'); // Example room number
-  const [userName, setUserName] = useState('John Doe'); // Example user name
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
 
   const handleVideoPause = () => {
     if (localVideoRef.current) {
-      localVideoRef.current.muted = !localVideoRef.current.muted;
-      setVideoPaused(localVideoRef.current.muted);
-      console.log(`Video ${localVideoRef.current.muted ? 'muted' : 'unmuted'}`);
+      const videoTracks = localVideoRef.current.srcObject.getVideoTracks();
+      videoTracks.forEach(track => track.enabled = !track.enabled);
+      setVideoPaused(!videoTracks[0].enabled);
+      console.log(`Video ${videoTracks[0].enabled ? 'unmuted' : 'muted'}`);
     }
   };
 
   const handleVoiceMute = () => {
     if (localVideoRef.current) {
-      localVideoRef.current.srcObject.getAudioTracks().forEach(track => {
-        track.enabled = !track.enabled;
-        setVoiceMuted(!track.enabled);
-      });
-      console.log(`Voice ${voiceMuted ? 'muted' : 'unmuted'}`);
+      const audioTracks = localVideoRef.current.srcObject.getAudioTracks();
+      audioTracks.forEach(track => track.enabled = !track.enabled);
+      setVoiceMuted(!audioTracks[0].enabled);
+      console.log(`Voice ${audioTracks[0].enabled ? 'unmuted' : 'muted'}`);
     }
   };
 
@@ -84,7 +84,7 @@ const Room = () => {
   };
 
   useEffect(() => {
-    // Example logic to access local camera and microphone
+    // Access local camera and microphone
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       .then((stream) => {
         if (localVideoRef.current) {
@@ -188,7 +188,7 @@ const Room = () => {
         </button>
       </div>
       <div className="mt-4 text-gray-700 dark:text-gray-400">
-        Room: {roomNumber}
+        Room Code: {roomCode}
       </div>
     </div>
   );

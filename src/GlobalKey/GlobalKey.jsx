@@ -1,2 +1,3 @@
 const api = "http://localhost:5002";
-export { api };
+const socket_api = "http://localhost:5003"
+export { api , socket_api};

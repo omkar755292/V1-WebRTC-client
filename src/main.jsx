@@ -16,6 +16,7 @@ import Firebaselayout from "./layout/firebase/firebaselayout";
 
 import ScrollToTop from "./ScrollToTop/ScrolltoTop";
 import Firebaselogin from "./layout/firebase/firebaselogin";
+import RoomLayout from "./layout/roomlayout";
 
 const helmetContext = {};
 
@@ -44,6 +45,9 @@ ReactDOM.createRoot( document.getElementById( "root" ) ).render(
 
 						</Fragment>
 					) ) }
+
+					{/* Room route */ }
+					<Route path="/room/:roomCode" element={ <RoomLayout /> } />
 
 				</Routes>
 			</BrowserRouter>

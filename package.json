@@ -68,10 +68,12 @@
     "react-tag-input-component": "^2.0.2",
     "redux-thunk": "^2.4.2",
     "simplebar-react": "^3.2.4",
+    "socket.io-client": "^4.7.5",
     "suneditor": "^2.45.1",
     "suneditor-react": "^3.6.1",
     "sweetalert2": "^11.7.20",
     "swiper": "^10.0.4",
+    "uuid": "^10.0.0",
     "yet-another-react-lightbox": "^3.11.4"
   },
   "devDependencies": {
