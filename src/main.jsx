@@ -16,41 +16,49 @@ import Firebaselayout from "./layout/firebase/firebaselayout";
 
 import ScrollToTop from "./ScrollToTop/ScrolltoTop";
 import Firebaselogin from "./layout/firebase/firebaselogin";
-import RoomLayout from "./layout/roomlayout";
+import { PeerContextProvider } from "./component/videoChat/PeerContext";
+import { SocketContextProvider } from "./component/videoChat/SocketContext";
+import RoomLayout from "./component/videoChat/roomlayout";
 
 const helmetContext = {};
 
-ReactDOM.createRoot( document.getElementById( "root" ) ).render(
+ReactDOM.createRoot(document.getElementById("root")).render(
 	<Fragment>
-		<HelmetProvider context={ helmetContext }>
-			<BrowserRouter>
-				<ScrollToTop />
-				<Routes>
+		<SocketContextProvider>
+			<PeerContextProvider>
 
-					<Route path={ `${ import.meta.env.BASE_URL }` } element={ <Firebaselayout /> }>
-					<Route index element={<Firebaselogin />} />
-						<Route path={`${import.meta.env.BASE_URL}login`} element={<Firebaselogin />} />
 
-					</Route>
+				<HelmetProvider context={helmetContext}>
+					<BrowserRouter>
+						<ScrollToTop />
+						<Routes>
 
-					{ RouteData.map( ( idx ) => (
-						<Fragment key={ Math.random() }>
-							{/* //Main page */ }
-							<Route path={ `${ import.meta.env.BASE_URL }` } element={ <App /> }>
-								<Route index element={ <MyHome /> } />
-								<Route exact path={ idx.path } element={ idx.element } />
+							<Route path={`${import.meta.env.BASE_URL}`} element={<Firebaselayout />}>
+								<Route index element={<Firebaselogin />} />
+								<Route path={`${import.meta.env.BASE_URL}login`} element={<Firebaselogin />} />
+
 							</Route>
 
-							<Route path="*" element={ <Error404 /> } />
+							{RouteData.map((idx) => (
+								<Fragment key={Math.random()}>
+									{/* //Main page */}
+									<Route path={`${import.meta.env.BASE_URL}`} element={<App />}>
+										<Route index element={<MyHome />} />
+										<Route exact path={idx.path} element={idx.element} />
+									</Route>
 
-						</Fragment>
-					) ) }
+									<Route path="*" element={<Error404 />} />
 
-					{/* Room route */ }
-					<Route path="/room/:roomCode" element={ <RoomLayout /> } />
+								</Fragment>
+							))}
 
-				</Routes>
-			</BrowserRouter>
-		</HelmetProvider>
+							{/* Room route */}
+							<Route path="/room/:roomId" element={<RoomLayout />} />
+
+						</Routes>
+					</BrowserRouter>
+				</HelmetProvider>
+			</PeerContextProvider>
+		</SocketContextProvider>
 	</Fragment>,
 );

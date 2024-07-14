@@ -1,85 +1,75 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { io } from 'socket.io-client';
+import { socket_api } from '../../GlobalKey/GlobalKey';
 import { useParams } from 'react-router-dom';
+import { usePeerContext } from './PeerContext';
+
+const socket = io(socket_api);
 
 const Room = () => {
-  const { roomCode } = useParams();
+  const { peer, createOffer, createAnswer, setRemoteAnswer, remoteStream } = usePeerContext();
+  const { roomId } = useParams();
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
-  const [remoteUserConnected, setRemoteUserConnected] = useState(false);
-  const [videoPaused, setVideoPaused] = useState(false);
-  const [voiceMuted, setVoiceMuted] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [screenSharing, setScreenSharing] = useState(false);
-  const mediaRecorderRef = useRef(null);
-  const chunksRef = useRef([]);
+  const [isLocalFullScreen, setIsLocalFullScreen] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoPaused, setIsVideoPaused] = useState(false);
 
-  const handleVideoPause = () => {
-    if (localVideoRef.current) {
-      const videoTracks = localVideoRef.current.srcObject.getVideoTracks();
-      videoTracks.forEach(track => track.enabled = !track.enabled);
-      setVideoPaused(!videoTracks[0].enabled);
-      console.log(`Video ${videoTracks[0].enabled ? 'unmuted' : 'muted'}`);
-    }
+  const handleNewUserJoined = useCallback(async (data) => {
+    const { userName, userEmail } = data;
+    console.log('new user joined', userName, userEmail);
+    const offer = await createOffer();
+    socket.emit('call-user', { userEmail, userName, offer });
+  }, [createOffer]);
+
+  const handleIncommingCall = useCallback(async (data) => {
+    const { from, offer } = data;
+    console.log("incoming call from", from);
+    const ans = await createAnswer(offer);
+    socket.emit('call-accepted', { userEmail: from, ans });
+  }, [createAnswer]);
+
+  const handleCallAccepted = useCallback(async (data) => {
+    const { ans } = data;
+    console.log("handle call accepted", data);
+    await setRemoteAnswer(ans);
+  }, [setRemoteAnswer]);
+
+  useEffect(() => {
+    socket.on('user-joined', handleNewUserJoined);
+    socket.on('incoming-call', handleIncommingCall);
+    socket.on('call-accepted', handleCallAccepted);
+
+    return () => {
+      socket.off('user-joined', handleNewUserJoined);
+      socket.off('incoming-call', handleIncommingCall);
+      socket.off('call-accepted', handleCallAccepted);
+    };
+  }, [handleNewUserJoined, handleIncommingCall, handleCallAccepted]);
+
+  const toggleVideoDisplay = () => {
+    setIsLocalFullScreen(!isLocalFullScreen);
   };
 
-  const handleVoiceMute = () => {
+  const handleMuteToggle = () => {
     if (localVideoRef.current) {
       const audioTracks = localVideoRef.current.srcObject.getAudioTracks();
-      audioTracks.forEach(track => track.enabled = !track.enabled);
-      setVoiceMuted(!audioTracks[0].enabled);
-      console.log(`Voice ${audioTracks[0].enabled ? 'unmuted' : 'muted'}`);
+      audioTracks.forEach(track => (track.enabled = !track.enabled));
+      setIsMuted(!isMuted);
     }
   };
 
-  const handleStartRecording = () => {
-    if (localVideoRef.current && !recording) {
-      try {
-        mediaRecorderRef.current = new MediaRecorder(localVideoRef.current.srcObject);
-        mediaRecorderRef.current.ondataavailable = handleDataAvailable;
-        mediaRecorderRef.current.start();
-        setRecording(true);
-        console.log('Recording started');
-      } catch (error) {
-        console.error('Error starting recording:', error);
-      }
-    }
-  };
-
-  const handleStopRecording = () => {
-    if (mediaRecorderRef.current && recording) {
-      mediaRecorderRef.current.stop();
-      setRecording(false);
-      console.log('Recording stopped');
-    }
-  };
-
-  const handleDataAvailable = (event) => {
-    chunksRef.current.push(event.data);
-  };
-
-  const handleScreenShare = () => {
-    if (!screenSharing) {
-      navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
-        .then((stream) => {
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = stream;
-            setScreenSharing(true);
-          }
-        })
-        .catch((error) => {
-          console.error('Error accessing screen sharing:', error);
-        });
-    } else {
-      // Stop screen sharing
-      const tracks = localVideoRef.current.srcObject.getTracks();
-      tracks.forEach(track => track.stop());
-      localVideoRef.current.srcObject = null;
-      setScreenSharing(false);
+  const handleVideoToggle = () => {
+    if (localVideoRef.current) {
+      const videoTracks = localVideoRef.current.srcObject.getVideoTracks();
+      videoTracks.forEach(track => (track.enabled = !track.enabled));
+      setIsVideoPaused(!isVideoPaused);
     }
   };
 
   const handleEndCall = () => {
     // Logic to end the call
+    alert("End Call");
     console.log('Call ended');
   };
 
@@ -90,105 +80,107 @@ const Room = () => {
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
+        stream.getTracks().forEach(track => peer.addTrack(track, stream));
       })
       .catch((error) => {
         console.error('Error accessing media devices:', error);
       });
-  }, []);
+  }, [peer]);
 
-  // Simulate remote user connection after 3 seconds (for demonstration)
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setRemoteUserConnected(true);
-    }, 3000); // Replace with actual logic to detect remote user connection
-
-    return () => clearTimeout(timer);
-  }, []);
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-gray-100 dark:bg-gray-800">
-      <div className="flex justify-center mb-4">
-        {remoteUserConnected ? (
-          <>
+    <div className="relative flex flex-col items-center justify-center h-screen bg-gray-100 dark:bg-gray-800">
+      <div className="absolute top-0 left-0 w-full h-full">
+        {isLocalFullScreen ? (
+          <div className="w-full h-full relative">
             <video
               ref={localVideoRef}
               autoPlay
               muted
-              className="rounded-lg shadow-md border-2 border-gray-300 dark:border-gray-600"
-              style={{ width: '50%', minWidth: '320px', height: 'auto' }}
+              className="w-full h-full object-cover"
+              onClick={toggleVideoDisplay}
             />
+            <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded-md">
+              local
+            </div>
+          </div>
+        ) : (
+          <div className="w-full h-full relative">
             <video
               ref={remoteVideoRef}
               autoPlay
-              className="rounded-lg shadow-md border-2 border-gray-300 dark:border-gray-600"
-              style={{ width: '50%', minWidth: '320px', height: 'auto' }}
+              className="w-full h-full object-cover"
+              onClick={toggleVideoDisplay}
             />
-          </>
-        ) : (
-          <video
-            ref={localVideoRef}
-            autoPlay
-            muted
-            className="rounded-lg shadow-md border-2 border-gray-300 dark:border-gray-600"
-            style={{ width: '100%', maxWidth: '640px', height: 'auto' }}
-          />
+            <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded-md">
+              remote
+            </div>
+          </div>
         )}
       </div>
-      <div className="flex justify-center">
+      <div className="absolute top-4 left-4 w-1/4 h-1/4">
+        {isLocalFullScreen ? (
+          <div className="w-full h-full relative">
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              className="w-full h-full object-cover border-2 border-white"
+              onClick={toggleVideoDisplay}
+            />
+            <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded-md">
+              remote
+            </div>
+          </div>
+        ) : (
+          <div className="w-full h-full relative">
+            <video
+              ref={localVideoRef}
+              autoPlay
+              muted
+              className="w-full h-full object-cover border-2 border-white"
+              onClick={toggleVideoDisplay}
+            />
+            <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded-md">
+              local
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="absolute bottom-4 left-4 text-gray-700 dark:text-gray-400 bg-white dark:bg-gray-700 p-2 rounded-lg shadow-md">
+        Meeting Code: {roomId}
+      </div>
+      <div className="absolute bottom-4 flex space-x-4">
         <button
-          onClick={handleVideoPause}
-          className={`bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-4 ${videoPaused ? 'bg-gray-300' : ''}`}
+          onClick={handleVideoToggle}
+          className="bg-gray-700 text-white p-2 rounded-full hover:bg-gray-500"
         >
-          {videoPaused ? (
+          {isVideoPaused ? (
             <span className="material-icons">videocam_off</span>
           ) : (
             <span className="material-icons">videocam</span>
           )}
         </button>
         <button
-          onClick={handleVoiceMute}
-          className={`bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-4 ${voiceMuted ? 'bg-gray-300' : ''}`}
+          onClick={handleMuteToggle}
+          className="bg-gray-700 text-white p-2 rounded-full hover:bg-gray-500"
         >
-          {voiceMuted ? (
+          {isMuted ? (
             <span className="material-icons">mic_off</span>
           ) : (
             <span className="material-icons">mic</span>
           )}
         </button>
-        {!screenSharing ? (
-          <button
-            onClick={handleScreenShare}
-            className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded mr-4"
-          >
-            <span className="material-icons">screen_share</span>
-          </button>
-        ) : (
-          <button
-            onClick={handleScreenShare}
-            className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded mr-4"
-          >
-            <span className="material-icons">stop_screen_share</span>
-          </button>
-        )}
-        <button
-          onClick={recording ? handleStopRecording : handleStartRecording}
-          className={`bg-${recording ? 'red' : 'green'}-500 hover:bg-${recording ? 'red' : 'green'}-700 text-white font-bold py-2 px-4 rounded mr-4`}
-        >
-          {recording ? (
-            <span className="material-icons">stop</span>
-          ) : (
-            <span className="material-icons">fiber_manual_record</span>
-          )}
-        </button>
         <button
           onClick={handleEndCall}
-          className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded ml-4"
+          className="bg-red-600 text-white p-2 rounded-full hover:bg-red-500"
         >
-          End Call
+          <span className="material-icons">call_end</span>
         </button>
-      </div>
-      <div className="mt-4 text-gray-700 dark:text-gray-400">
-        Room Code: {roomCode}
       </div>
     </div>
   );

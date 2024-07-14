@@ -1,10 +1,10 @@
 import React from 'react';
-import Room from '../component/videoChat/Room';
+import RoomPage from './RoomPage';
 
 const RoomLayout = () => {
   return (
     <div>
-      <Room />
+      <RoomPage />
     </div>
   );
 };

@@ -1,41 +1,59 @@
-import React, { useRef, useState } from 'react';
-import { io } from 'socket.io-client';
-import { socket_api } from '../../GlobalKey/GlobalKey';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import Swal from 'sweetalert2';
+import { useSocketContext } from './SocketContext';
 
 const VideoCall = () => {
-  const socket = io(socket_api);
   const navigate = useNavigate();
-  const localVideoRef = useRef(null);
-  const remoteVideoRef = useRef(null);
-  const peerConnectionRef = useRef(null);
-  const [meetingCode, setMeetingCode] = useState('');
-  const [loading, setLoading] = useState(false); // State for loading indicator
+  const { socket } = useSocketContext();
+  const [roomId, setRoomId] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  socket.on("hello socket", (arg) => {
-    console.log(arg);
-  });
+  const handleRoomJoin = useCallback(
+    (data) => {
 
-  const handleNewMeeting = () => {
+      const { roomId } = data;
+      console.log(data);
+
+      setLoading(true);
+      setTimeout(() => {
+        console.log('Joining meeting with code:', roomId);
+        navigate(`/room/${roomId}`);
+        setLoading(false);
+        setRoomId('');
+      }, 2000);
+
+    }, [navigate]
+  );
+
+  useEffect(() => {
+
+    socket.on('user-connected', handleRoomJoin);
+    socket.on('user-connected', handleRoomJoin);
+
+    return () => {
+      socket.off('user-connected', handleRoomJoin);
+    };
+
+  }, [socket]);
+
+  const handleNewMeeting = useCallback(() => {
     const userEmail = localStorage.getItem('userEmail');
     const userName = localStorage.getItem('userName');
-    const userId = localStorage.getItem('user_id');
-    const roomCode = uuidv4();
+    const roomId = uuidv4();
 
-    console.log('New meeting created', { userId, userName, userEmail, roomCode });
     Swal.fire({
       title: 'New Meeting Created',
       html: `
-        <p>Meeting Code: <strong>${roomCode}</strong></p>
+        <p>Meeting Code: <strong>${roomId}</strong></p>
         <button id="copyMeetingCode" class="swal2-confirm swal2-styled" style="background-color: #3085d6; color: white; border: none; border-radius: 4px; padding: 0.5em 1em;">Copy</button>
       `,
       showConfirmButton: false,
       didOpen: () => {
         const copyButton = document.getElementById('copyMeetingCode');
         copyButton.addEventListener('click', () => {
-          navigator.clipboard.writeText(roomCode).then(() => {
+          navigator.clipboard.writeText(roomId).then(() => {
             Swal.fire({
               icon: 'success',
               title: 'Copied!',
@@ -43,28 +61,20 @@ const VideoCall = () => {
               showConfirmButton: false,
               timer: 1500
             });
-            setMeetingCode(''); // Clear the input field after copying
+            socket.emit("join-room", { userName, userEmail, roomId });
           });
         });
       }
     });
+  }, []);
 
-    socket.emit("room:join", { userEmail, roomCode });
-    handleJoinMeeting(roomCode);
-  };
+  const handleJoinMeeting = useCallback((roomId) => {
 
-  const handleJoinMeeting = (meetingCode) => {
-    setLoading(true); // Activate loading indicator
+    const userEmail = localStorage.getItem('userEmail');
+    const userName = localStorage.getItem('userName');
+    socket.emit("join-room", { userName, userEmail, roomId });
 
-    // Simulate a 2-second delay before opening the room
-    setTimeout(() => {
-      console.log('Joining meeting with code:', meetingCode);
-      const roomId = meetingCode;
-      window.open(`/room/${roomId}`, '_blank');
-      setLoading(false); // Turn off loading indicator
-      setMeetingCode(''); // Clear the input field after copying
-    }, 2000);
-  };
+  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100 text-gray-800 p-4 dark:bg-gray-800 dark:text-white">
@@ -81,12 +91,12 @@ const VideoCall = () => {
           <input
             type="text"
             placeholder="Enter Code"
-            value={meetingCode}
-            onChange={(e) => setMeetingCode(e.target.value)}
+            value={roomId}
+            onChange={(e) => setRoomId(e.target.value)}
             className="p-2 rounded text-gray-800 border mr-2 dark:text-gray-800"
           />
           <button
-            onClick={() => handleJoinMeeting(meetingCode)}
+            onClick={() => handleJoinMeeting(roomId)}
             className={`bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
             disabled={loading}
           >
