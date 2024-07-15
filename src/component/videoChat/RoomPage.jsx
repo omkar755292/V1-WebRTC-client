@@ -1,53 +1,57 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useSocketContext } from './SocketContext';
 import { usePeerContext } from './PeerContext';
-import { useParams } from 'react-router-dom';
 
 const RoomPage = () => {
   const { socket } = useSocketContext();
-  const { createOffer, createAnswer } = usePeerContext();
-  const { roomId } = useParams();
+  const { createOffer, createAnswer, setRemoteAnswer } = usePeerContext();
 
-  const handleNewUserJoined = useCallback(async (data) => {
-    console.log('new user joined', data);
-    const { userEmail } = data;
+  const handleHello = useCallback(async (data) => {
+    console.log('New user joined: ', data);
+    const { userEmail, socketId, roomId } = data;
+    const toEmail = userEmail;
+    const fromEmail = localStorage.getItem('userEmail');
     const offer = await createOffer();
-    console.log(offer);
-    socket.emit('signal', { offer, userEmail });
+    socket.emit('call-user', { offer, toEmail, fromEmail, socketId });
+    console.log(socket);
   }, [createOffer, socket]);
 
+  const handleIncomingCall = useCallback( (data) => {
+    console.log('Incoming call from: ', data);
+    const { offer, fromEmail } = data;
+    
+  }, [createAnswer, socket]);
 
-  const handleIncomingSignal = useCallback(
-    async (data) => {
-      console.log('handle incoming signal', data);
-      const { offer, fromEmail } = data;
-      const answer = await createAnswer(offer);
-      socket.emit('signal-accepted', { answer, userEmail: fromEmail });
-    }, [createAnswer, socket]);
-
-  useEffect(() => {
-    console.log("Setting up incoming-signal listener");
-    socket.on('incoming-signal', handleIncomingSignal);
-    return () => {
-      console.log("Removing incoming-signal listener");
-      socket.off('incoming-signal', handleIncomingSignal);
-    };
-  }, [socket, handleIncomingSignal]);
+  const handleUserConnected = useCallback(async (data) => {
+    const { socketId, roomId } = data;
+    console.log('user connected', data)
+  }, []);
 
 
   useEffect(() => {
 
-    socket.on('new-user-joined', handleNewUserJoined);
+    socket.on('incoming-call', handleIncomingCall);
 
     return () => {
-      socket.off('new-user-joined', handleNewUserJoined);
+
+      socket.off('incoming-call', handleIncomingCall);
+    }
+  }, [handleIncomingCall, socket, handleHello, handleUserConnected])
+
+  useEffect(() => {
+
+    socket.on('hello', handleHello);
+    socket.on('user-connected', handleUserConnected);
+
+    return () => {
+      socket.off('user-connected', handleUserConnected);
+      socket.off('hello', handleHello);
     };
-  }, [socket, handleNewUserJoined]);
+  }, [socket, handleHello, handleUserConnected]);
 
   return (
     <div>
       <h1>RoomPage</h1>
-      {/* Add your room page content here */}
     </div>
   );
 };

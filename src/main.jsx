@@ -53,7 +53,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
 							))}
 
 							{/* Room route */}
-							<Route path="/room/:roomId" element={<RoomLayout />} />
+							{/* <Route path="/room/:roomId" element={<RoomLayout />} /> */}
 
 						</Routes>
 					</BrowserRouter>

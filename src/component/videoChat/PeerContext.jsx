@@ -31,8 +31,8 @@ export const PeerContextProvider = (props) => {
     return answer;
   };
 
-  const setRemoteAnswer = async (ans) => {
-    await peer.setRemoteDescription(ans);
+  const setRemoteAnswer = async (answer) => {
+    await peer.setRemoteDescription(answer);
   };
 
   const handleTrackEvent = useCallback((event) => {

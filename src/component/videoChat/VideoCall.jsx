@@ -27,21 +27,48 @@ const VideoCall = () => {
     }, [navigate]
   );
 
+  const handleRoomCreate = useCallback(
+    (data) => {
+
+      const { roomId } = data;
+      console.log(data);
+
+      setLoading(true);
+      setTimeout(() => {
+        console.log('Joining meeting with code:', roomId);
+        navigate(`/room/${roomId}`);
+        setLoading(false);
+        setRoomId('');
+      }, 2000);
+
+    }, [navigate]
+  );
+
   useEffect(() => {
 
     socket.on('user-connected', handleRoomJoin);
-    socket.on('user-connected', handleRoomJoin);
+    socket.on('room-created', handleRoomCreate);
 
     return () => {
       socket.off('user-connected', handleRoomJoin);
+      socket.off('room-created', handleRoomCreate);
     };
 
   }, [socket]);
 
-  const handleNewMeeting = useCallback(() => {
+  const handleJoinMeeting = useCallback((roomId) => {
+
     const userEmail = localStorage.getItem('userEmail');
     const userName = localStorage.getItem('userName');
+    socket.emit("join-room", { userName, userEmail, roomId });
+
+  }, []);
+
+  const handleNewMeeting = useCallback(() => {
+
     const roomId = uuidv4();
+    const userName = localStorage.getItem('userName');
+    const userEmail = localStorage.getItem('userEmail');
 
     Swal.fire({
       title: 'New Meeting Created',
@@ -61,20 +88,13 @@ const VideoCall = () => {
               showConfirmButton: false,
               timer: 1500
             });
-            socket.emit("join-room", { userName, userEmail, roomId });
+            socket.emit("create-room", { roomId, userName, userEmail });
           });
         });
       }
     });
   }, []);
 
-  const handleJoinMeeting = useCallback((roomId) => {
-
-    const userEmail = localStorage.getItem('userEmail');
-    const userName = localStorage.getItem('userName');
-    socket.emit("join-room", { userName, userEmail, roomId });
-
-  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100 text-gray-800 p-4 dark:bg-gray-800 dark:text-white">

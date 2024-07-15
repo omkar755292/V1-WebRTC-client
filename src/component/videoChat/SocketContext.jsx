@@ -8,7 +8,11 @@ export const useSocketContext = () => useContext(SocketContext);
 
 export const SocketContextProvider = (props) => {
 
-    const socket = useMemo(() => io(socket_api), []);
+    const socket = useMemo(() => {
+        const socketInstance = io(socket_api);
+        console.log('Socket initialized:', socketInstance);
+        return socketInstance;
+    }, []);
 
     const value = { socket };
 
