@@ -1,97 +1,104 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { io } from 'socket.io-client';
-import { socket_api } from '../../GlobalKey/GlobalKey';
 import { useParams } from 'react-router-dom';
 import { usePeerContext } from './PeerContext';
-
-const socket = io(socket_api);
+import { useSocketContext } from './SocketContext';
 
 const Room = () => {
-  const { peer, createOffer, createAnswer, setRemoteAnswer, remoteStream } = usePeerContext();
-  const { roomId } = useParams();
-  const localVideoRef = useRef(null);
+  const { socket } = useSocketContext();
+  const { peer, createOffer, createAnswer, setRemoteAnswer, addRemoteStream } = usePeerContext();
+  const hostVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const { roomId } = useParams();
   const [isLocalFullScreen, setIsLocalFullScreen] = useState(true);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isVideoPaused, setIsVideoPaused] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [isVideoPaused, setIsVideoPaused] = useState(true);
 
-  const handleNewUserJoined = useCallback(async (data) => {
-    const { userName, userEmail } = data;
-    console.log('new user joined', userName, userEmail);
-    const offer = await createOffer();
-    socket.emit('call-user', { userEmail, userName, offer });
-  }, [createOffer]);
+  const handleUserConnected = useCallback(async (data) => {
+    console.log('User connected:', data);
+    const { userEmail } = data;
+    if (peer) {
+      const offer = await createOffer();
+      socket.emit('offer', { userEmail, roomId, offer });
+    }
+  }, [peer, createOffer, socket, roomId]);
 
-  const handleIncommingCall = useCallback(async (data) => {
-    const { from, offer } = data;
-    console.log("incoming call from", from);
-    const ans = await createAnswer(offer);
-    socket.emit('call-accepted', { userEmail: from, ans });
-  }, [createAnswer]);
+  const handleReceiveOffer = useCallback(async ({ userId, offer }) => {
+    if (peer) {
+      const answer = await createAnswer(offer);
+      socket.emit('answer', { roomId, answer });
+    }
+  }, [peer, createAnswer, socket, roomId]);
 
-  const handleCallAccepted = useCallback(async (data) => {
-    const { ans } = data;
-    console.log("handle call accepted", data);
-    await setRemoteAnswer(ans);
-  }, [setRemoteAnswer]);
+  const handleReceiveAnswer = useCallback(({ answer }) => {
+    if (peer) {
+      setRemoteAnswer(answer);
+    }
+  }, [peer, setRemoteAnswer]);
+
+  const handleReceiveRemoteStream = useCallback((stream) => {
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = stream;
+    }
+  }, []);
 
   useEffect(() => {
-    socket.on('user-joined', handleNewUserJoined);
-    socket.on('incoming-call', handleIncommingCall);
-    socket.on('call-accepted', handleCallAccepted);
+    socket.on('user-connected', handleUserConnected);
+    socket.on('receive-offer', handleReceiveOffer);
+    socket.on('receive-answer', handleReceiveAnswer);
+    socket.on('remote-stream', handleReceiveRemoteStream);
 
     return () => {
-      socket.off('user-joined', handleNewUserJoined);
-      socket.off('incoming-call', handleIncommingCall);
-      socket.off('call-accepted', handleCallAccepted);
+      socket.off('user-connected', handleUserConnected);
+      socket.off('receive-offer', handleReceiveOffer);
+      socket.off('receive-answer', handleReceiveAnswer);
+      socket.off('remote-stream', handleReceiveRemoteStream);
     };
-  }, [handleNewUserJoined, handleIncommingCall, handleCallAccepted]);
+  }, [socket, handleUserConnected, handleReceiveOffer, handleReceiveAnswer, handleReceiveRemoteStream]);
+
+  useEffect(() => {
+    if (hostVideoRef.current) {
+      navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        .then(stream => {
+          hostVideoRef.current.srcObject = stream;
+          stream.getTracks().forEach(track => peer.addTrack(track, stream));
+        })
+        .catch(error => console.error('Error accessing media devices.', error));
+    }
+  }, [peer]);
 
   const toggleVideoDisplay = () => {
     setIsLocalFullScreen(!isLocalFullScreen);
   };
 
   const handleMuteToggle = () => {
-    if (localVideoRef.current) {
-      const audioTracks = localVideoRef.current.srcObject.getAudioTracks();
-      audioTracks.forEach(track => (track.enabled = !track.enabled));
+    if (hostVideoRef.current) {
+      hostVideoRef.current.srcObject.getAudioTracks().forEach(track => {
+        track.enabled = !track.enabled;
+      });
       setIsMuted(!isMuted);
     }
   };
 
   const handleVideoToggle = () => {
-    if (localVideoRef.current) {
-      const videoTracks = localVideoRef.current.srcObject.getVideoTracks();
-      videoTracks.forEach(track => (track.enabled = !track.enabled));
+    if (hostVideoRef.current) {
+      hostVideoRef.current.srcObject.getVideoTracks().forEach(track => {
+        track.enabled = !track.enabled;
+      });
       setIsVideoPaused(!isVideoPaused);
     }
   };
 
   const handleEndCall = () => {
-    // Logic to end the call
-    alert("End Call");
+    if (hostVideoRef.current) {
+      hostVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
+    }
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
+    peer.destroy();
+    socket.emit('leave-room', { roomId });
     console.log('Call ended');
   };
-
-  useEffect(() => {
-    // Access local camera and microphone
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      .then((stream) => {
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
-        stream.getTracks().forEach(track => peer.addTrack(track, stream));
-      })
-      .catch((error) => {
-        console.error('Error accessing media devices:', error);
-      });
-  }, [peer]);
-
-  useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
-    }
-  }, [remoteStream]);
 
   return (
     <div className="relative flex flex-col items-center justify-center h-screen bg-gray-100 dark:bg-gray-800">
@@ -99,14 +106,14 @@ const Room = () => {
         {isLocalFullScreen ? (
           <div className="w-full h-full relative">
             <video
-              ref={localVideoRef}
+              ref={hostVideoRef}
               autoPlay
               muted
               className="w-full h-full object-cover"
               onClick={toggleVideoDisplay}
             />
             <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded-md">
-              local
+              Local
             </div>
           </div>
         ) : (
@@ -118,35 +125,7 @@ const Room = () => {
               onClick={toggleVideoDisplay}
             />
             <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded-md">
-              remote
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="absolute top-4 left-4 w-1/4 h-1/4">
-        {isLocalFullScreen ? (
-          <div className="w-full h-full relative">
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              className="w-full h-full object-cover border-2 border-white"
-              onClick={toggleVideoDisplay}
-            />
-            <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded-md">
-              remote
-            </div>
-          </div>
-        ) : (
-          <div className="w-full h-full relative">
-            <video
-              ref={localVideoRef}
-              autoPlay
-              muted
-              className="w-full h-full object-cover border-2 border-white"
-              onClick={toggleVideoDisplay}
-            />
-            <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded-md">
-              local
+              Remote
             </div>
           </div>
         )}

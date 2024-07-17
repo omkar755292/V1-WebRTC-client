@@ -3,78 +3,47 @@ import { useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import Swal from 'sweetalert2';
 import { useSocketContext } from './SocketContext';
+import { usePeerContext } from './usePeer';
 
 const VideoCall = () => {
   const navigate = useNavigate();
+  const { myId } = usePeerContext();
   const { socket } = useSocketContext();
   const [roomId, setRoomId] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleRoomJoin = useCallback(
-    (data) => {
+  const handleHostJoin = useCallback((data) => {
+    const { roomId } = data;
+    setLoading(false);
+    navigate(`/room/${roomId}`);
+  }, [navigate]);
 
-      const { roomId } = data;
-      console.log(data);
-
-      setLoading(true);
-      setTimeout(() => {
-        console.log('Joining meeting with code:', roomId);
-        navigate(`/room/${roomId}`);
-        setLoading(false);
-        setRoomId('');
-      }, 2000);
-
-    }, [navigate]
-  );
-
-  const handleRoomCreate = useCallback(
-    (data) => {
-
-      const { roomId } = data;
-      console.log(data);
-
-      setLoading(true);
-      setTimeout(() => {
-        console.log('Joining meeting with code:', roomId);
-        navigate(`/room/${roomId}`);
-        setLoading(false);
-        setRoomId('');
-      }, 2000);
-
-    }, [navigate]
-  );
+  const handleUserJoin = useCallback((data) => {
+    const { roomId } = data;
+    setLoading(false);
+    navigate(`/room/${roomId}`);
+  }, [navigate]);
 
   useEffect(() => {
-
-    socket.on('user-connected', handleRoomJoin);
-    socket.on('room-created', handleRoomCreate);
+    socket.on('host-join', handleHostJoin);
+    socket.on('user-join', handleUserJoin);
 
     return () => {
-      socket.off('user-connected', handleRoomJoin);
-      socket.off('room-created', handleRoomCreate);
+      socket.off('host-join', handleHostJoin);
+      socket.off('user-join', handleUserJoin);
     };
-
-  }, [socket]);
-
-  const handleJoinMeeting = useCallback((roomId) => {
-
-    const userEmail = localStorage.getItem('userEmail');
-    const userName = localStorage.getItem('userName');
-    socket.emit("join-room", { userName, userEmail, roomId });
-
-  }, []);
+  }, [socket, handleHostJoin, handleUserJoin]);
 
   const handleNewMeeting = useCallback(() => {
-
     const roomId = uuidv4();
-    const userName = localStorage.getItem('userName');
     const userEmail = localStorage.getItem('userEmail');
-
     Swal.fire({
       title: 'New Meeting Created',
       html: `
         <p>Meeting Code: <strong>${roomId}</strong></p>
-        <button id="copyMeetingCode" class="swal2-confirm swal2-styled" style="background-color: #3085d6; color: white; border: none; border-radius: 4px; padding: 0.5em 1em;">Copy</button>
+        <button id="copyMeetingCode" class="swal2-confirm swal2-styled bg-blue-500 text-white rounded px-4 py-2 mt-2">
+          Copy
+        </button>
       `,
       showConfirmButton: false,
       didOpen: () => {
@@ -85,16 +54,30 @@ const VideoCall = () => {
               icon: 'success',
               title: 'Copied!',
               text: 'Meeting code has been copied to clipboard',
-              showConfirmButton: false,
-              timer: 1500
+              timer: 1500,
+              showConfirmButton: false
             });
-            socket.emit("create-room", { roomId, userName, userEmail });
+            socket.emit("create-room", { roomId, userEmail, myId });
           });
         });
       }
     });
-  }, []);
+  }, [socket, myId]);
 
+  const handleJoinRoom = useCallback(() => {
+    if (!roomId) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Please enter a room code to join',
+        showConfirmButton: true,
+      });
+      return;
+    }
+    const userEmail = localStorage.getItem('userEmail');
+    socket.emit("join-room", { userEmail, roomId, myId });
+    setLoading(true);
+  }, [roomId, socket, myId]);
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100 text-gray-800 p-4 dark:bg-gray-800 dark:text-white">
@@ -116,7 +99,7 @@ const VideoCall = () => {
             className="p-2 rounded text-gray-800 border mr-2 dark:text-gray-800"
           />
           <button
-            onClick={() => handleJoinMeeting(roomId)}
+            onClick={handleJoinRoom}
             className={`bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
             disabled={loading}
           >

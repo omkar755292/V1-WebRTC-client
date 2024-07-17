@@ -19,13 +19,14 @@ import Firebaselogin from "./layout/firebase/firebaselogin";
 import { PeerContextProvider } from "./component/videoChat/PeerContext";
 import { SocketContextProvider } from "./component/videoChat/SocketContext";
 import RoomLayout from "./component/videoChat/roomlayout";
+import { PeerProvider } from "./component/videoChat/usePeer";
 
 const helmetContext = {};
 
 ReactDOM.createRoot(document.getElementById("root")).render(
 	<Fragment>
 		<SocketContextProvider>
-			<PeerContextProvider>
+			<PeerProvider>
 
 
 				<HelmetProvider context={helmetContext}>
@@ -53,12 +54,12 @@ ReactDOM.createRoot(document.getElementById("root")).render(
 							))}
 
 							{/* Room route */}
-							{/* <Route path="/room/:roomId" element={<RoomLayout />} /> */}
+							<Route path="/room/:roomId" element={<RoomLayout />} />
 
 						</Routes>
 					</BrowserRouter>
 				</HelmetProvider>
-			</PeerContextProvider>
+			</PeerProvider>
 		</SocketContextProvider>
 	</Fragment>,
 );

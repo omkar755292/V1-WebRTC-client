@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useMemo } from 'react';
-import { socket_api } from '../../GlobalKey/GlobalKey';
 import { io } from 'socket.io-client';
 
 const SocketContext = createContext(null);
@@ -8,11 +7,12 @@ export const useSocketContext = () => useContext(SocketContext);
 
 export const SocketContextProvider = (props) => {
 
-    const socket = useMemo(() => {
-        const socketInstance = io(socket_api);
-        console.log('Socket initialized:', socketInstance);
-        return socketInstance;
-    }, []);
+    const socket = useMemo(
+        () => {
+            const socketInstance = io('http://localhost:5002');
+            console.log('socket connected', socketInstance);
+            return socketInstance;
+        }, []);
 
     const value = { socket };
 

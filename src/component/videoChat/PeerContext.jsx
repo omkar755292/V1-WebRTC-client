@@ -5,8 +5,6 @@ const PeerContext = createContext(null);
 export const usePeerContext = () => useContext(PeerContext);
 
 export const PeerContextProvider = (props) => {
-  const [remoteStream, setRemoteStream] = useState(null);
-
   const peer = useMemo(() => new RTCPeerConnection({
     iceServers: [
       {
@@ -17,6 +15,42 @@ export const PeerContextProvider = (props) => {
       }
     ]
   }), []);
+
+  const [iceCandidates, setIceCandidates] = useState([]);
+
+  useEffect(() => {
+    const handleIceConnectionStateChange = () => {
+      console.log(`ICE connection state: ${peer.iceConnectionState}`);
+    };
+
+    const handleConnectionStateChange = () => {
+      console.log(`Peer connection state: ${peer.connectionState}`);
+    };
+
+    const handleIceCandidate = (event) => {
+      if (event.candidate) {
+        setIceCandidates((prev) => [...prev, event.candidate]);
+        console.log('New ICE candidate:', event.candidate);
+      }
+    };
+
+    const handleIceGatheringStateChange = () => {
+      console.log(`ICE gathering state: ${peer.iceGatheringState}`);
+    };
+
+    peer.addEventListener('iceconnectionstatechange', handleIceConnectionStateChange);
+    peer.addEventListener('connectionstatechange', handleConnectionStateChange);
+    peer.addEventListener('icecandidate', handleIceCandidate);
+    peer.addEventListener('icegatheringstatechange', handleIceGatheringStateChange);
+
+    // Cleanup event listeners on unmount
+    return () => {
+      peer.removeEventListener('iceconnectionstatechange', handleIceConnectionStateChange);
+      peer.removeEventListener('connectionstatechange', handleConnectionStateChange);
+      peer.removeEventListener('icecandidate', handleIceCandidate);
+      peer.removeEventListener('icegatheringstatechange', handleIceGatheringStateChange);
+    };
+  }, [peer]);
 
   const createOffer = async () => {
     const offer = await peer.createOffer();
@@ -35,19 +69,7 @@ export const PeerContextProvider = (props) => {
     await peer.setRemoteDescription(answer);
   };
 
-  const handleTrackEvent = useCallback((event) => {
-    const [stream] = event.streams;
-    setRemoteStream(stream);
-  }, []);
-
-  useEffect(() => {
-    peer.addEventListener('track', handleTrackEvent);
-    return () => {
-      peer.removeEventListener('track', handleTrackEvent);
-    };
-  }, [peer, handleTrackEvent]);
-
-  const value = { peer, createOffer, createAnswer, setRemoteAnswer, remoteStream };
+  const value = { peer, createOffer, createAnswer, setRemoteAnswer, iceCandidates };
 
   return (
     <PeerContext.Provider value={value}>
