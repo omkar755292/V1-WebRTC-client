@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-const usePlayer = () => {
+const usePlayer = (myId) => {
     const [players, setPlayers] = useState({})
     return { players, setPlayers }
 }
