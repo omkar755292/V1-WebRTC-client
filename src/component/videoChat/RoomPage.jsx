@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import useMediaStream from './MediaStream';
+import useMediaStream from './hookcontext/MediaStream';
 import { useParams } from 'react-router-dom';
-import { useSocketContext } from './SocketContext';
-import { usePeerContext } from './usePeer';
+import { useSocketContext } from './hookcontext/SocketContext';
+import { usePeerContext } from './hookcontext/PeerContext';
 
 const RoomPage = () => {
   const { roomId } = useParams();
@@ -17,7 +17,6 @@ const RoomPage = () => {
 
   useEffect(() => {
     if (!username) {
-      // Assuming that if username is not in localStorage, the user is the host.
       localStorage.setItem('userName', 'Host');
     }
   }, [username]);
@@ -84,11 +83,9 @@ const RoomPage = () => {
 
   const endCall = () => {
     console.log('Ending call...');
-    // Handle ending the call logic
   };
 
   useEffect(() => {
-    // Clean up videoRefs
     return () => {
       Object.keys(videoRefs.current).forEach(id => {
         videoRefs.current[id].srcObject = null;

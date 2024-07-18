@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import Swal from 'sweetalert2';
-import { useSocketContext } from './SocketContext';
-import { usePeerContext } from './usePeer';
+import { useSocketContext } from './hookcontext/SocketContext';
+import { usePeerContext } from './hookcontext/PeerContext';
 
 const VideoCall = () => {
   const navigate = useNavigate();

@@ -16,17 +16,16 @@ import Firebaselayout from "./layout/firebase/firebaselayout";
 
 import ScrollToTop from "./ScrollToTop/ScrolltoTop";
 import Firebaselogin from "./layout/firebase/firebaselogin";
-import { PeerContextProvider } from "./component/videoChat/PeerContext";
-import { SocketContextProvider } from "./component/videoChat/SocketContext";
-import RoomLayout from "./component/videoChat/roomlayout";
-import { PeerProvider } from "./component/videoChat/usePeer";
+import RoomLayout from "./layout/roomlayout";
+import { PeerContextProvider } from "./component/videoChat/hookcontext/PeerContext";
+import { SocketContextProvider } from "./component/videoChat/hookcontext/SocketContext";
 
 const helmetContext = {};
 
 ReactDOM.createRoot(document.getElementById("root")).render(
 	<Fragment>
 		<SocketContextProvider>
-			<PeerProvider>
+			<PeerContextProvider>
 
 
 				<HelmetProvider context={helmetContext}>
@@ -59,7 +58,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
 						</Routes>
 					</BrowserRouter>
 				</HelmetProvider>
-			</PeerProvider>
+			</PeerContextProvider>
 		</SocketContextProvider>
 	</Fragment>,
 );

@@ -7,7 +7,7 @@ export const usePeerContext = () => {
     return useContext(PeerContext);
 };
 
-export const PeerProvider = (props) => {
+export const PeerContextProvider = (props) => {
     const [peer, setPeer] = useState(null);
     const [myId, setMyId] = useState('');
 
