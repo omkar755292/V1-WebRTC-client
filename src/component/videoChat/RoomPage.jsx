@@ -8,7 +8,7 @@ import usePlayer from './hookcontext/playerHook';
 
 const RoomPage = () => {
   const { roomId } = useParams();
-  const { stream } = useMediaStream();
+  const { stream , loading, error} = useMediaStream();
   const { myId, peer } = usePeerContext();
   const { socket } = useSocketContext();
   const { players, setPlayers } = usePlayer();
@@ -18,27 +18,27 @@ const RoomPage = () => {
 
   const handleUserConnected = useCallback((data) => {
     console.log('User connected:', data);
-    const { id, userEmail } = data;
-    const call = peer.call(id, stream, { metadata: { userEmail } });
+    const { id, email } = data;
+    const call = peer.call(id, stream, { metadata: { email: userEmail } });
 
     call.on('stream', (incomingStream) => {
-      console.log('Call accepted, incoming stream from', userEmail);
+      console.log('Call accepted, incoming stream from', data);
       setPlayers((prev) => ({
         ...prev,
         [id]: {
           url: incomingStream,
-          muted: false,
+          muted: true,
           playing: true,
-          userEmail: userEmail,
+          email: email,
         },
       }));
     });
-  }, [peer, stream, setPlayers]);
+  }, [peer, stream, setPlayers, userEmail]);
 
   const handleCall = useCallback((call) => {
     const { peer: callerId, metadata } = call;
     console.log('Incoming call from', callerId);
-    call.answer(stream);
+    call.answer(stream, { metadata: { email: userEmail } });
 
     call.on('stream', (incomingStream) => {
       console.log('Call accepted, incoming stream from', callerId);
@@ -46,13 +46,13 @@ const RoomPage = () => {
         ...prev,
         [callerId]: {
           url: incomingStream,
-          muted: false,
+          muted: true,
           playing: true,
-          userEmail: metadata.userEmail, // Use userEmail from metadata
+          email: metadata.email,
         },
       }));
     });
-  }, [stream, setPlayers]);
+  }, [stream, setPlayers, userEmail]);
 
   useEffect(() => {
     peer.on('call', handleCall);
@@ -72,9 +72,9 @@ const RoomPage = () => {
       ...prev,
       [myId]: {
         url: stream,
-        muted: false,
+        muted: true,
         playing: true,
-        userEmail: userEmail,
+        email: userEmail,
       },
     }));
 
@@ -98,6 +98,22 @@ const RoomPage = () => {
       // Handle play/pause for remote users if needed
     }
   };
+  
+  const toggleScreenSharing = (userId) => {
+    if (userId === 'local') {
+      setPlaying((prev) => !prev);
+    } else {
+      // Handle play/pause for remote users if needed
+    }
+  };
+
+  const toggleScreenRecording = (userId) => {
+    if (userId === 'local') {
+      setPlaying((prev) => !prev);
+    } else {
+      // Handle play/pause for remote users if needed
+    }
+  };
 
   const endCall = (userId) => {
     console.log('Ending call...', userId);
@@ -106,52 +122,72 @@ const RoomPage = () => {
 
   return (
     <div className="relative flex flex-col items-center justify-center h-screen bg-gray-800 dark:bg-gray-800">
-      <div className="absolute top-0 left-0 w-full h-full">
-        <div className="w-full flex items-center justify-center h-full relative">
-          {Object.keys(players).map((playerId) => {
-            const { url, muted, playing, userEmail } = players[playerId];
-            return (
-              <div key={playerId} className="relative w-full h-full">
-                <ReactPlayer
-                  url={url}
-                  muted={muted}
-                  playing={playing}
-                  height="100%"
-                  width="100%"
-                />
-                <div className="absolute top-16 left-4 text-gray-700 dark:text-gray-400 bg-white dark:bg-gray-700 p-2 rounded-lg shadow-md">
-                  <span>{userEmail}</span>
-                </div>
-              </div>
-            );
-          })}
+      {loading ? (
+        <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
+          <div className="text-white">Loading...</div>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="absolute top-0 left-0 w-full h-full">
+            <div className="w-full flex items-center justify-center h-full relative">
+              {Object.keys(players).map((playerId) => {
+                const { url, muted, playing, email } = players[playerId];
+                return (
+                  <div key={playerId} className="relative">
+                    <ReactPlayer
+                      url={url}
+                      muted={muted}
+                      playing={playing}
+                      height="100%"
+                      width="100%"
+                    />
+                    <div className="absolute top-4 left-4 text-grey-700 bg-white  p-2 rounded-lg shadow-md">
+                      <span>{email}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
-      <div className="absolute bottom-4 left-4 text-gray-700 dark:text-gray-400 bg-white dark:bg-gray-700 p-2 rounded-lg shadow-md">
-        <span className="mr-2">Meeting Code: {roomId}</span>
-      </div>
+          <div className="absolute bottom-4 left-4 text-gray-700 dark:text-gray-400 bg-white dark:bg-gray-700 p-2 rounded-lg shadow-md">
+            <span className="mr-2">Meeting Code: {roomId}</span>
+          </div>
 
-      <div className="absolute bottom-4 text-gray-700 p-2 rounded-lg shadow-md">
-        <button
-          onClick={() => toggleMute('local')}
-          className="px-3 py-1 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
-        >
-          {muted ? 'Unmute' : 'Mute'}
-        </button>
-        <button
-          onClick={() => togglePlay('local')}
-          className="px-3 py-1 ml-2 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
-        >
-          {playing ? 'Pause' : 'Play'}
-        </button>
-        <button
-          onClick={() => endCall('local')}
-          className="px-3 py-1 ml-2 bg-red-500 text-white rounded-lg shadow-md focus:outline-none"
-        >
-          End Call
-        </button>
-      </div>
+          <div className="absolute bottom-4 text-gray-700 p-2 rounded-lg shadow-md">
+            <button
+              onClick={() => toggleMute('local')}
+              className="px-3 py-1 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
+            >
+              {muted ? 'Unmute' : 'Mute'}
+            </button>
+            <button
+              onClick={() => togglePlay('local')}
+              className="px-3 py-1 ml-2 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
+            >
+              {playing ? 'Pause' : 'Play'}
+            </button>
+            <button
+              onClick={() => toggleScreenSharing('local')}
+              className="px-3 py-1 ml-2 bg-green-500 text-white rounded-lg shadow-md focus:outline-none"
+            >
+             Screen Share {playing ? 'on' : 'off'}
+            </button>
+            <button
+              onClick={() => toggleScreenRecording('local')}
+              className="px-3 py-1 ml-2 bg-yellow-500 text-white rounded-lg shadow-md focus:outline-none"
+            >
+             Screen Recording {playing ? 'on' : 'off'}
+            </button>
+            <button
+              onClick={() => endCall('local')}
+              className="px-3 py-1 ml-2 bg-red-500 text-white rounded-lg shadow-md focus:outline-none"
+            >
+              End Call
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 };
