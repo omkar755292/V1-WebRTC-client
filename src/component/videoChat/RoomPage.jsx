@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import ReactPlayer from 'react-player';
 import useMediaStream from './hookcontext/MediaStream';
 import { useSocketContext } from './hookcontext/SocketContext';
@@ -8,12 +8,16 @@ import usePlayer from './hookcontext/playerHook';
 
 const RoomPage = () => {
   const { roomId } = useParams();
-  const { stream , loading, error} = useMediaStream();
+  const { stream, loading, error } = useMediaStream();
   const { myId, peer } = usePeerContext();
   const { socket } = useSocketContext();
-  const { players, setPlayers } = usePlayer();
+  const { players, setPlayers, toggleAudio, toggleVideo } = usePlayer({ roomId });
+  const [users, setUsers] = useState([]);
   const [muted, setMuted] = useState(false);
   const [playing, setPlaying] = useState(true);
+  const [screenSharing, setScreenSharing] = useState(false);
+  const [screenRecording, setScreenRecording] = useState(false);
+  const navigate = useNavigate();
   const userEmail = localStorage.getItem('userEmail');
 
   const handleUserConnected = useCallback((data) => {
@@ -28,10 +32,16 @@ const RoomPage = () => {
         [id]: {
           url: incomingStream,
           muted: true,
-          playing: true,
+          playing: false,
           email: email,
         },
       }));
+
+      setUsers((prev) => ({
+        ...prev,
+        [id]: call
+      }))
+
     });
   }, [peer, stream, setPlayers, userEmail]);
 
@@ -47,10 +57,17 @@ const RoomPage = () => {
         [callerId]: {
           url: incomingStream,
           muted: true,
-          playing: true,
+          playing: false,
           email: metadata.email,
         },
       }));
+
+
+      setUsers((prev) => ({
+        ...prev,
+        [callerId]: call
+      }))
+
     });
   }, [stream, setPlayers, userEmail]);
 
@@ -73,7 +90,7 @@ const RoomPage = () => {
       [myId]: {
         url: stream,
         muted: true,
-        playing: true,
+        playing: false,
         email: userEmail,
       },
     }));
@@ -83,45 +100,98 @@ const RoomPage = () => {
     };
   }, [stream, myId, setPlayers, userEmail]);
 
-  const toggleMute = (userId) => {
-    if (userId === 'local') {
-      setMuted((prev) => !prev);
-    } else {
-      // Handle mute for remote users if needed
+  const handleToggleMute = useCallback((data) => {
+    const { userEmail, userId } = data;
+    console.log('toggle audio call for user', userEmail);
+
+    setPlayers((prevPlayers) => {
+      const updatedPlayers = {
+        ...prevPlayers,
+        [userId]: {
+          ...prevPlayers[userId],
+          muted: !prevPlayers[userId]?.muted
+        }
+      }
+      return updatedPlayers
+    })
+  }, [setPlayers]);
+
+  const handleTogglePause = useCallback((data) => {
+    const { userEmail, userId } = data;
+    console.log('toggle video call for user', userEmail);
+
+    setPlayers((prevPlayers) => {
+      const updatedPlayers = {
+        ...prevPlayers,
+        [userId]: {
+          ...prevPlayers[userId],
+          playing: !prevPlayers[userId]?.playing
+        }
+      }
+      return updatedPlayers
+    })
+  }, [setPlayers]);
+
+
+  const endCall = useCallback(() => {
+    console.log('Ending call...');
+    socket.emit('end-call', { myId, userEmail, roomId });
+    if (peer) {
+      peer.destroy(); // or peer.close(), depending on your peer library
     }
+    navigate('/video-call');
+
+  }, [peer, navigate]);
+
+
+  const handleUserLeave = useCallback((data) => {
+    const { userEmail, userId } = data;
+    console.log('User left the call:', userEmail);
+
+    // Close the user's stream or connection
+    if (users[userId]) {
+        users[userId].close();
+        delete users[userId];
+    }
+
+    // Remove the user from the players list
+    setPlayers((prevPlayers) => {
+        const updatedPlayers = { ...prevPlayers };
+        delete updatedPlayers[userId];
+
+        return updatedPlayers;
+    });
+
+}, [users, setPlayers]);
+
+  useEffect(() => {
+    socket.on('user-toggle-audio', handleToggleMute);
+    socket.on('user-toggle-video', handleTogglePause);
+    socket.on('user-leave', handleUserLeave);
+
+    return () => {
+      socket.off('user-leave', handleUserLeave);
+      socket.off('user-toggle-audio', handleToggleMute);
+      socket.off('user-toggle-video', handleTogglePause);
+    };
+  }, [socket, handleToggleMute, handleTogglePause, handleUserLeave]);
+
+  const toggleScreenSharing = () => {
+    setScreenSharing((prev) => !prev);
+    console.log(screenSharing ? 'Ending screen share' : 'Starting screen share');
+
   };
 
-  const togglePlay = (userId) => {
-    if (userId === 'local') {
-      setPlaying((prev) => !prev);
-    } else {
-      // Handle play/pause for remote users if needed
-    }
-  };
-  
-  const toggleScreenSharing = (userId) => {
-    if (userId === 'local') {
-      setPlaying((prev) => !prev);
-    } else {
-      // Handle play/pause for remote users if needed
-    }
+  const toggleScreenRecording = () => {
+    setScreenRecording((prev) => !prev);
+    console.log(screenRecording ? 'Stopping screen recording' : 'Starting screen recording');
+
   };
 
-  const toggleScreenRecording = (userId) => {
-    if (userId === 'local') {
-      setPlaying((prev) => !prev);
-    } else {
-      // Handle play/pause for remote users if needed
-    }
-  };
-
-  const endCall = (userId) => {
-    console.log('Ending call...', userId);
-    // Implement logic to end the call
-  };
+  if (error) return <div className="text-black">Error: {error.message}</div>;
 
   return (
-    <div className="relative flex flex-col items-center justify-center h-screen bg-gray-800 dark:bg-gray-800">
+    <div className="relative flex flex-col items-center justify-center h-screen bg-gray-800">
       {loading ? (
         <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
           <div className="text-white">Loading...</div>
@@ -133,17 +203,24 @@ const RoomPage = () => {
               {Object.keys(players).map((playerId) => {
                 const { url, muted, playing, email } = players[playerId];
                 return (
-                  <div key={playerId} className="relative">
-                    <ReactPlayer
-                      url={url}
-                      muted={muted}
-                      playing={playing}
-                      height="100%"
-                      width="100%"
-                    />
-                    <div className="absolute top-4 left-4 text-grey-700 bg-white  p-2 rounded-lg shadow-md">
-                      <span>{email}</span>
-                    </div>
+                  <div key={playerId} className="relative h-full w-full">
+                    {playing ?
+                      <div className="relative h-full w-full">
+
+                        <div className="absolute text-grey-700 bg-white p-2 rounded-lg shadow-md">
+                          <span>{email}</span>
+                        </div>
+                        <ReactPlayer
+                          url={url}
+                          muted={muted}
+                          playing={playing}
+                          height="100%"
+                          width="100%"
+                        // className="absolute top-0 left-0"
+                        />
+                      </div> : <div className="flex h-full w-full items-center justify-center w-full h-full bg-gray-800 text-white text-center">
+                        <span className="text-xl font-semibold">{email}</span>
+                      </div>}
                   </div>
                 );
               })}
@@ -156,31 +233,37 @@ const RoomPage = () => {
 
           <div className="absolute bottom-4 text-gray-700 p-2 rounded-lg shadow-md">
             <button
-              onClick={() => toggleMute('local')}
+              onClick={() => {
+                toggleAudio()
+                setMuted((prev) => !prev);
+              }}
               className="px-3 py-1 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
             >
               {muted ? 'Unmute' : 'Mute'}
             </button>
             <button
-              onClick={() => togglePlay('local')}
+              onClick={() => {
+                toggleVideo()
+                setPlaying((prev) => !prev);
+              }}
               className="px-3 py-1 ml-2 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
             >
               {playing ? 'Pause' : 'Play'}
             </button>
             <button
-              onClick={() => toggleScreenSharing('local')}
-              className="px-3 py-1 ml-2 bg-green-500 text-white rounded-lg shadow-md focus:outline-none"
+              onClick={toggleScreenSharing}
+              className={`px-3 py-1 ml-2 ${screenSharing ? 'bg-red-500' : 'bg-green-500'} text-white rounded-lg shadow-md focus:outline-none`}
             >
-             Screen Share {playing ? 'on' : 'off'}
+              Screen Share {screenSharing ? 'on' : 'off'}
             </button>
             <button
-              onClick={() => toggleScreenRecording('local')}
-              className="px-3 py-1 ml-2 bg-yellow-500 text-white rounded-lg shadow-md focus:outline-none"
+              onClick={toggleScreenRecording}
+              className={`px-3 py-1 ml-2 ${screenRecording ? 'bg-red-500' : 'bg-yellow-500'} text-white rounded-lg shadow-md focus:outline-none`}
             >
-             Screen Recording {playing ? 'on' : 'off'}
+              Screen Recording {screenRecording ? 'on' : 'off'}
             </button>
             <button
-              onClick={() => endCall('local')}
+              onClick={endCall}
               className="px-3 py-1 ml-2 bg-red-500 text-white rounded-lg shadow-md focus:outline-none"
             >
               End Call
