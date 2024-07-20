@@ -8,35 +8,63 @@ const usePlayer = ({ roomId }) => {
     const { socket } = useSocketContext()
     const userEmail = localStorage.getItem('userEmail');
 
-    const toggleAudio = () => {
+    const unmuteAudio = () => {
         setPlayers((prevPlayers) => {
             const updatedPlayers = {
                 ...prevPlayers,
                 [myId]: {
                     ...prevPlayers[myId],
-                    muted: !prevPlayers[myId]?.muted
+                    muted: false
                 }
             }
             return updatedPlayers
         })
-        socket.emit('user-toggle-audio', { myId, roomId, userEmail })
+        socket.emit('user-unmute-audio', { myId, roomId, userEmail })
     }
 
-    const toggleVideo = () => {
+    const muteAudio = () => {
         setPlayers((prevPlayers) => {
             const updatedPlayers = {
                 ...prevPlayers,
                 [myId]: {
                     ...prevPlayers[myId],
-                    playing: !prevPlayers[myId]?.playing
+                    muted: true
                 }
             }
             return updatedPlayers
         })
-        socket.emit('user-toggle-video', { myId, roomId, userEmail })
+        socket.emit('user-mute-audio', { myId, roomId, userEmail })
     }
 
-    return { players, setPlayers, toggleAudio, toggleVideo }
+    const pauseVideo = () => {
+        setPlayers((prevPlayers) => {
+            const updatedPlayers = {
+                ...prevPlayers,
+                [myId]: {
+                    ...prevPlayers[myId],
+                    playing: false
+                }
+            }
+            return updatedPlayers
+        })
+        socket.emit('user-pause-video', { myId, roomId, userEmail })
+    }
+
+    const playVideo = () => {
+        setPlayers((prevPlayers) => {
+            const updatedPlayers = {
+                ...prevPlayers,
+                [myId]: {
+                    ...prevPlayers[myId],
+                    playing: true
+                }
+            }
+            return updatedPlayers
+        })
+        socket.emit('user-play-video', { myId, roomId, userEmail })
+    }
+
+    return { players, setPlayers, playVideo, pauseVideo, muteAudio, unmuteAudio }
 }
 
 export default usePlayer

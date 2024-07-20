@@ -11,6 +11,10 @@ node_modules
 dist
 dist-ssr
 *.local
+deploy.sh
+setup.sh
+.env
+webrtc-client
 
 # Editor directories and files
 .vscode/*

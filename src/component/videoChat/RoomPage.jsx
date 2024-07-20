@@ -11,7 +11,7 @@ const RoomPage = () => {
   const { stream, loading, error } = useMediaStream();
   const { myId, peer } = usePeerContext();
   const { socket } = useSocketContext();
-  const { players, setPlayers, toggleAudio, toggleVideo } = usePlayer({ roomId });
+  const { players, setPlayers, playVideo, pauseVideo, muteAudio, unmuteAudio } = usePlayer({ roomId });
   const [users, setUsers] = useState([]);
   const [muted, setMuted] = useState(false);
   const [playing, setPlaying] = useState(true);
@@ -100,32 +100,64 @@ const RoomPage = () => {
     };
   }, [stream, myId, setPlayers, userEmail]);
 
-  const handleToggleMute = useCallback((data) => {
+  const handleUnmuteAudio = useCallback((data) => {
     const { userEmail, userId } = data;
-    console.log('toggle audio call for user', userEmail);
+    console.log('unmute audio call for user', userEmail);
 
     setPlayers((prevPlayers) => {
       const updatedPlayers = {
         ...prevPlayers,
         [userId]: {
           ...prevPlayers[userId],
-          muted: !prevPlayers[userId]?.muted
+          muted: false
         }
       }
       return updatedPlayers
     })
   }, [setPlayers]);
 
-  const handleTogglePause = useCallback((data) => {
+  const handleMuteAudio = useCallback((data) => {
     const { userEmail, userId } = data;
-    console.log('toggle video call for user', userEmail);
+    console.log('mute audio call for user', userEmail);
 
     setPlayers((prevPlayers) => {
       const updatedPlayers = {
         ...prevPlayers,
         [userId]: {
           ...prevPlayers[userId],
-          playing: !prevPlayers[userId]?.playing
+          muted: true
+        }
+      }
+      return updatedPlayers
+    })
+  }, [setPlayers]);
+
+  const handlePlayVideo = useCallback((data) => {
+    const { userEmail, userId } = data;
+    console.log('video call play for user', userEmail);
+
+    setPlayers((prevPlayers) => {
+      const updatedPlayers = {
+        ...prevPlayers,
+        [userId]: {
+          ...prevPlayers[userId],
+          playing: true
+        }
+      }
+      return updatedPlayers
+    })
+  }, [setPlayers]);
+
+  const handlePauseVideo = useCallback((data) => {
+    const { userEmail, userId } = data;
+    console.log('video call pause for user', userEmail);
+
+    setPlayers((prevPlayers) => {
+      const updatedPlayers = {
+        ...prevPlayers,
+        [userId]: {
+          ...prevPlayers[userId],
+          playing: false
         }
       }
       return updatedPlayers
@@ -150,31 +182,35 @@ const RoomPage = () => {
 
     // Close the user's stream or connection
     if (users[userId]) {
-        users[userId].close();
-        delete users[userId];
+      users[userId].close();
+      delete users[userId];
     }
 
     // Remove the user from the players list
     setPlayers((prevPlayers) => {
-        const updatedPlayers = { ...prevPlayers };
-        delete updatedPlayers[userId];
+      const updatedPlayers = { ...prevPlayers };
+      delete updatedPlayers[userId];
 
-        return updatedPlayers;
+      return updatedPlayers;
     });
 
-}, [users, setPlayers]);
+  }, [users, setPlayers]);
 
   useEffect(() => {
-    socket.on('user-toggle-audio', handleToggleMute);
-    socket.on('user-toggle-video', handleTogglePause);
+    socket.on('user-mute-audio', handleMuteAudio);
+    socket.on('user-unmute-audio', handleUnmuteAudio);
+    socket.on('user-play-video', handlePlayVideo);
+    socket.on('user-pause-video', handlePauseVideo);
     socket.on('user-leave', handleUserLeave);
 
     return () => {
       socket.off('user-leave', handleUserLeave);
-      socket.off('user-toggle-audio', handleToggleMute);
-      socket.off('user-toggle-video', handleTogglePause);
+      socket.off('user-mute-audio', handleMuteAudio);
+      socket.off('user-unmute-audio', handleUnmuteAudio);
+      socket.off('user-play-video', handlePlayVideo);
+      socket.off('user-pause-video', handlePauseVideo);
     };
-  }, [socket, handleToggleMute, handleTogglePause, handleUserLeave]);
+  }, [socket, handleMuteAudio, handleUnmuteAudio, handlePlayVideo, handlePauseVideo, handleUserLeave]);
 
   const toggleScreenSharing = () => {
     setScreenSharing((prev) => !prev);
@@ -216,8 +252,7 @@ const RoomPage = () => {
                           playing={playing}
                           height="100%"
                           width="100%"
-                        // className="absolute top-0 left-0"
-                        />
+                        ></ReactPlayer>
                       </div> : <div className="flex h-full w-full items-center justify-center w-full h-full bg-gray-800 text-white text-center">
                         <span className="text-xl font-semibold">{email}</span>
                       </div>}
@@ -232,46 +267,111 @@ const RoomPage = () => {
           </div>
 
           <div className="absolute bottom-4 text-gray-700 p-2 rounded-lg shadow-md">
-            <button
-              onClick={() => {
-                toggleAudio()
-                setMuted((prev) => !prev);
-              }}
-              className="px-3 py-1 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
-            >
-              {muted ? 'Unmute' : 'Mute'}
-            </button>
-            <button
-              onClick={() => {
-                toggleVideo()
-                setPlaying((prev) => !prev);
-              }}
-              className="px-3 py-1 ml-2 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
-            >
-              {playing ? 'Pause' : 'Play'}
-            </button>
-            <button
-              onClick={toggleScreenSharing}
-              className={`px-3 py-1 ml-2 ${screenSharing ? 'bg-red-500' : 'bg-green-500'} text-white rounded-lg shadow-md focus:outline-none`}
-            >
-              Screen Share {screenSharing ? 'on' : 'off'}
-            </button>
-            <button
-              onClick={toggleScreenRecording}
-              className={`px-3 py-1 ml-2 ${screenRecording ? 'bg-red-500' : 'bg-yellow-500'} text-white rounded-lg shadow-md focus:outline-none`}
-            >
-              Screen Recording {screenRecording ? 'on' : 'off'}
-            </button>
+            {/* Mute Button */}
+            {muted ? (
+              <button
+                onClick={() => {
+                  setMuted((prev) => !prev);
+                  muteAudio();
+                }}
+                className="px-3 py-1 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
+              >
+                <i className="ti ti-microphone"></i>
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setMuted((prev) => !prev);
+                  unmuteAudio();
+                }}
+                className="px-3 py-1 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
+              >
+                <i className="ti ti-microphone-off"></i>
+              </button>
+            )}
+
+            {/* Playing Button */}
+            {playing ? (
+              <button
+                onClick={() => {
+                  setPlaying((prev) => !prev);
+                  playVideo();
+                }}
+                className="px-3 py-1 ml-2 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
+              >
+                <i className="ti ti-video-off"></i>
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setPlaying((prev) => !prev);
+                  pauseVideo();
+                }}
+                className="px-3 py-1 ml-2 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
+              >
+                <i className="ti ti-video"></i>
+              </button>
+            )}
+
+            {/* Screen Share Button
+            {screenSharing ? (
+              <button
+                onClick={() => {
+                  toggleScreenSharing();
+                  setScreenSharing((prev) => !prev);
+                }}
+                className="px-3 py-1 ml-2 bg-red-500 text-white rounded-lg shadow-md focus:outline-none"
+              >
+                Screen Share On
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  toggleScreenSharing();
+                  setScreenSharing((prev) => !prev);
+                }}
+                className="px-3 py-1 ml-2 bg-green-500 text-white rounded-lg shadow-md focus:outline-none"
+              >
+                Screen Share Off
+              </button>
+            )} */}
+
+            {/* Screen Recording Button
+            {screenRecording ? (
+              <button
+                onClick={() => {
+                  toggleScreenRecording();
+                  setScreenRecording((prev) => !prev);
+                }}
+                className="px-3 py-1 ml-2 bg-red-500 text-white rounded-lg shadow-md focus:outline-none"
+              >
+                Screen Recording On
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  toggleScreenRecording();
+                  setScreenRecording((prev) => !prev);
+                }}
+                className="px-3 py-1 ml-2 bg-yellow-500 text-white rounded-lg shadow-md focus:outline-none"
+              >
+                Screen Recording Off
+              </button>
+            )} */}
+
+            {/* End Call Button */}
             <button
               onClick={endCall}
               className="px-3 py-1 ml-2 bg-red-500 text-white rounded-lg shadow-md focus:outline-none"
             >
-              End Call
+              <i className="ti ti-phone"></i>
             </button>
           </div>
+
         </>
-      )}
-    </div>
+      )
+      }
+    </div >
   );
 };
 

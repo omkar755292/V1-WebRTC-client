@@ -1,2 +1,2 @@
-const api = "http://localhost:5002";
-export { api};
+const api = import.meta.env.VITE_APP_BASEURL;
+export { api };
