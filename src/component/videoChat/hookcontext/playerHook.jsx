@@ -14,7 +14,7 @@ const usePlayer = ({ roomId }) => {
                 ...prevPlayers,
                 [myId]: {
                     ...prevPlayers[myId],
-                    muted: false
+                    muted: true
                 }
             }
             return updatedPlayers

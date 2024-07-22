@@ -313,7 +313,7 @@ const RoomPage = () => {
               </button>
             )}
 
-            {/* Screen Share Button
+             {/* Screen Share Button */}
             {screenSharing ? (
               <button
                 onClick={() => {
@@ -334,9 +334,9 @@ const RoomPage = () => {
               >
                 Screen Share Off
               </button>
-            )} */}
+            )}
 
-            {/* Screen Recording Button
+             {/* Screen Recording Button */}
             {screenRecording ? (
               <button
                 onClick={() => {
@@ -357,7 +357,7 @@ const RoomPage = () => {
               >
                 Screen Recording Off
               </button>
-            )} */}
+            )}
 
             {/* End Call Button */}
             <button
