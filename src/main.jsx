@@ -1,64 +1,20 @@
-import React, { Fragment } from "react";
-import ReactDOM from "react-dom/client";
+import React from 'react'
+import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import "./index.scss";
-import { RouteData } from "./common/routingData";
-import { HelmetProvider } from 'react-helmet-async';
+import App from './App.jsx'
+import './index.css'
+import { SocketContextProvider } from './hookcontext/SocketContext.jsx'
+import { PeerContextProvider } from './hookcontext/PeerContext.jsx'
+import { Router } from 'react-router-dom'
 
-import App from "./layout/App";
-
-import MyHome from "./component/dashboardHome/home";
-
-
-import Error404 from "./component/errorpage/Error404/error404";
-
-import Firebaselayout from "./layout/firebase/firebaselayout";
-
-import ScrollToTop from "./ScrollToTop/ScrolltoTop";
-import Firebaselogin from "./layout/firebase/firebaselogin";
-import RoomLayout from "./layout/roomlayout";
-import { PeerContextProvider } from "./component/videoChat/hookcontext/PeerContext";
-import { SocketContextProvider } from "./component/videoChat/hookcontext/SocketContext";
-
-const helmetContext = {};
-
-ReactDOM.createRoot(document.getElementById("root")).render(
-	<Fragment>
-		<SocketContextProvider>
-			<PeerContextProvider>
-
-
-				<HelmetProvider context={helmetContext}>
-					<BrowserRouter>
-						<ScrollToTop />
-						<Routes>
-
-							<Route path={`${import.meta.env.BASE_URL}`} element={<Firebaselayout />}>
-								<Route index element={<Firebaselogin />} />
-								<Route path={`${import.meta.env.BASE_URL}login`} element={<Firebaselogin />} />
-
-							</Route>
-
-							{RouteData.map((idx) => (
-								<Fragment key={Math.random()}>
-									{/* //Main page */}
-									<Route path={`${import.meta.env.BASE_URL}`} element={<App />}>
-										<Route index element={<MyHome />} />
-										<Route exact path={idx.path} element={idx.element} />
-									</Route>
-
-									<Route path="*" element={<Error404 />} />
-
-								</Fragment>
-							))}
-
-							{/* Room route */}
-							<Route path="/room/:roomId" element={<RoomLayout />} />
-
-						</Routes>
-					</BrowserRouter>
-				</HelmetProvider>
-			</PeerContextProvider>
-		</SocketContextProvider>
-	</Fragment>,
-);
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <BrowserRouter >
+      <SocketContextProvider>
+        <PeerContextProvider>
+          <App />
+        </PeerContextProvider>
+      </SocketContextProvider>
+    </BrowserRouter>
+  </React.StrictMode>,
+)
