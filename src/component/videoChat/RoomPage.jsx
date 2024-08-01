@@ -17,6 +17,9 @@ const RoomPage = () => {
   const [playing, setPlaying] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
   const [screenRecording, setScreenRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [recordedChunks, setRecordedChunks] = useState([]);
+  const [videoURL, setVideoURL] = useState('');
   const navigate = useNavigate();
   const userEmail = localStorage.getItem('userEmail');
 
@@ -218,11 +221,50 @@ const RoomPage = () => {
 
   };
 
-  const toggleScreenRecording = () => {
-    setScreenRecording((prev) => !prev);
-    console.log(screenRecording ? 'Stopping screen recording' : 'Starting screen recording');
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
 
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          setRecordedChunks(prev => [...prev, event.data]);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+
+        // Automatically trigger download
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'recording.webm'; // Filename for the saved recording
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        setVideoURL(url); // Save URL if needed for other purposes
+        setRecordedChunks([]); // Clear recorded chunks
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setScreenRecording(true);
+    } catch (error) {
+      console.error('Error starting screen recording:', error);
+    }
   };
+
+  const stopRecording = () => {
+    if (mediaRecorder) {
+      mediaRecorder.stop();
+      mediaRecorder.stream.getTracks().forEach(track => track.stop());
+      setMediaRecorder(null);
+      setScreenRecording(false);
+    }
+  };
+
 
   if (error) return <div className="text-black">Error: {error.message}</div>;
 
@@ -313,7 +355,7 @@ const RoomPage = () => {
               </button>
             )}
 
-             {/* Screen Share Button */}
+            {/* Screen Share Button */}
             {screenSharing ? (
               <button
                 onClick={() => {
@@ -336,12 +378,11 @@ const RoomPage = () => {
               </button>
             )}
 
-             {/* Screen Recording Button */}
+            {/* Screen Recording Button */}
             {screenRecording ? (
               <button
                 onClick={() => {
-                  toggleScreenRecording();
-                  setScreenRecording((prev) => !prev);
+                  stopRecording();
                 }}
                 className="px-3 py-1 ml-2 bg-red-500 text-white rounded-lg shadow-md focus:outline-none"
               >
@@ -350,14 +391,14 @@ const RoomPage = () => {
             ) : (
               <button
                 onClick={() => {
-                  toggleScreenRecording();
-                  setScreenRecording((prev) => !prev);
+                  startRecording();
                 }}
                 className="px-3 py-1 ml-2 bg-yellow-500 text-white rounded-lg shadow-md focus:outline-none"
               >
                 Screen Recording Off
               </button>
             )}
+
 
             {/* End Call Button */}
             <button
