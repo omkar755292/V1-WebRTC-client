@@ -64,7 +64,38 @@ const usePlayer = ({ roomId }) => {
         socket.emit('user-play-video', { myId, roomId, userEmail })
     }
 
-    return { players, setPlayers, playVideo, pauseVideo, muteAudio, unmuteAudio }
+
+    const screenShareON = () => {
+        setPlayers((prevPlayers) => {
+            const updatedPlayers = {
+                ...prevPlayers,
+                [myId]: {
+                    ...prevPlayers[myId],
+                    screenSharing: true
+                }
+            }
+            return updatedPlayers
+        })
+        socket.emit('user-screenshare-on', { myId, roomId, userEmail })
+    }
+
+    const screenShareOFF = () => {
+        setPlayers((prevPlayers) => {
+            const updatedPlayers = {
+                ...prevPlayers,
+                [myId]: {
+                    ...prevPlayers[myId],
+                    screenSharing: false
+                }
+            }
+            return updatedPlayers
+        })
+        socket.emit('user-screenshare-off', { myId, roomId, userEmail })
+    }
+
+
+
+    return { players, setPlayers, screenShareON, screenShareOFF, playVideo, pauseVideo, muteAudio, unmuteAudio }
 }
 
 export default usePlayer

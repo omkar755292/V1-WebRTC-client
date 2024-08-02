@@ -2,10 +2,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { MonitorUp, Mic, MicOff, Video, Circle, VideoOff, Phone, Airplay, CircleStop } from 'lucide-react'
 import ReactPlayer from 'react-player';
+import RecordRTC from 'recordrtc';
 import useMediaStream from '../hookcontext/MediaStream';
 import { usePeerContext } from '../hookcontext/PeerContext';
 import { useSocketContext } from '../hookcontext/SocketContext';
 import usePlayer from '../hookcontext/playerHook';
+import Swal from 'sweetalert2';
 
 
 const RoomPage = () => {
@@ -13,15 +15,14 @@ const RoomPage = () => {
   const { stream, loading, error } = useMediaStream();
   const { myId, peer } = usePeerContext();
   const { socket } = useSocketContext();
-  const { players, setPlayers, playVideo, pauseVideo, muteAudio, unmuteAudio } = usePlayer({ roomId });
+  const { players, setPlayers, playVideo, pauseVideo, muteAudio, unmuteAudio, screenShareON, screenShareOFF } = usePlayer({ roomId });
   const [users, setUsers] = useState([]);
-  const [muted, setMuted] = useState(false);
-  const [playing, setPlaying] = useState(true);
-  const [screenSharing, setScreenSharing] = useState(false);
-  const [screenRecording, setScreenRecording] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState(null);
-  const [recordedChunks, setRecordedChunks] = useState([]);
-  const [videoURL, setVideoURL] = useState('');
+  const [recordStream, setRecordStream] = useState(null);
   const navigate = useNavigate();
   const userEmail = localStorage.getItem('userEmail');
 
@@ -38,6 +39,7 @@ const RoomPage = () => {
           url: incomingStream,
           muted: true,
           playing: false,
+          screensharing: false,
           email: email,
         },
       }));
@@ -63,6 +65,7 @@ const RoomPage = () => {
           url: incomingStream,
           muted: true,
           playing: false,
+          screensharing: false,
           email: metadata.email,
         },
       }));
@@ -96,6 +99,7 @@ const RoomPage = () => {
         url: stream,
         muted: true,
         playing: false,
+        screensharing: false,
         email: userEmail,
       },
     }));
@@ -217,55 +221,152 @@ const RoomPage = () => {
     };
   }, [socket, handleMuteAudio, handleUnmuteAudio, handlePlayVideo, handlePauseVideo, handleUserLeave]);
 
-  const toggleScreenSharing = () => {
-    setScreenSharing((prev) => !prev);
-    console.log(screenSharing ? 'Ending screen share' : 'Starting screen share');
+  const startScreenShare = async () => {
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
 
+      console.log(screenStream);
+
+      setPlayers((prev) => ({
+        ...prev,
+        [myId]: {
+          ...prev[myId],
+          url: screenStream,
+          playing: true
+        },
+      }));
+
+      screenShareON();
+      setIsScreenSharing(true);
+
+      screenStream.getTracks().forEach(track => {
+        track.onended = () => {
+          stopScreenShare();
+        };
+      });
+
+    } catch (error) {
+      console.error("Error starting screen share:", error);
+    }
+  };
+
+  const stopScreenShare = () => {
+    const screenStream = players[myId]?.url;
+    if (screenStream) {
+      screenStream.getTracks().forEach(track => track.stop());
+    }
+
+    setPlayers((prev) => ({
+      ...prev,
+      [myId]: {
+        ...prev[myId],
+        url: stream,
+        playing: false
+      },
+    }));
+
+    screenShareOFF();
+    setIsScreenSharing(false);
   };
 
   const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          setRecordedChunks(prev => [...prev, event.data]);
-        }
+    const rStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    const recorder = new RecordRTC(rStream, { type: 'video' });
+    setRecordStream(rStream);
+    setMediaRecorder(recorder);
+    recorder.startRecording();
+    console.log('Recording started');
+  
+    rStream.getTracks().forEach(track => {
+      track.onended = () => {
       };
-
-      recorder.onstop = () => {
-        const blob = new Blob(recordedChunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-
-        // Automatically trigger download
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'recording.webm'; // Filename for the saved recording
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-        setVideoURL(url); // Save URL if needed for other purposes
-        setRecordedChunks([]); // Clear recorded chunks
-      };
-
-      recorder.start();
-      setMediaRecorder(recorder);
-      setScreenRecording(true);
-    } catch (error) {
-      console.error('Error starting screen recording:', error);
-    }
+    });
   };
-
+  
   const stopRecording = () => {
-    if (mediaRecorder) {
-      mediaRecorder.stop();
-      mediaRecorder.stream.getTracks().forEach(track => track.stop());
-      setMediaRecorder(null);
-      setScreenRecording(false);
-    }
+    if (!mediaRecorder || !recordStream) return;
+  
+    mediaRecorder.stopRecording(() => {
+      const blob = mediaRecorder.getBlob();
+      const url = URL.createObjectURL(blob);
+      const dateStr = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+  
+      Swal.fire({
+        title: 'Save Recording',
+        text: 'Do you want to save the recording?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Save',
+        cancelButtonText: 'Cancel'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `recorded-video-${dateStr}.webm`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      });
+    });
+  
+    recordStream.getTracks().forEach(track => track.stop());
+    setMediaRecorder(null);
+    setRecordStream(null);
   };
+  
+
+
+  const handleScreenShareStart = useCallback((data) => {
+    const { userEmail, userId } = data;
+    console.log('User start screen share:', userEmail);
+
+    setPlayers((prevPlayers) => {
+      const updatedPlayers = {
+        ...prevPlayers,
+        [userId]: {
+          ...prevPlayers[userId],
+          screenSharing: true,
+          playing: true
+        }
+      }
+      return updatedPlayers
+    })
+
+
+  }, [setPlayers]);
+
+  const handleScreenShareStop = useCallback((data) => {
+    const { userEmail, userId } = data;
+    console.log('User stop screen share:', userEmail);
+
+    setPlayers((prevPlayers) => {
+      const updatedPlayers = {
+        ...prevPlayers,
+        [userId]: {
+          ...prevPlayers[userId],
+          screenSharing: false,
+          playing: false
+        }
+      }
+      return updatedPlayers
+    })
+
+
+  }, [setPlayers]);
+
+
+  useEffect(() => {
+    socket.on('screen-share-start', handleScreenShareStart);
+    socket.on('screen-share-stop', handleScreenShareStop);
+
+    return () => {
+      socket.off('screen-share-start', handleScreenShareStart);
+      socket.off('screen-share-stop', handleScreenShareStop);
+
+    }
+  }, [socket, handleScreenShareStop, handleScreenShareStart])
+
 
 
   if (error) return <div className="text-black">Error: {error.message}</div>;
@@ -282,6 +383,7 @@ const RoomPage = () => {
             <div className="w-full flex items-center justify-center h-full relative">
               {Object.keys(players).map((playerId) => {
                 const { url, muted, playing, email } = players[playerId];
+
                 return (
                   <div key={playerId} className="relative h-full w-full">
                     {playing ?
@@ -312,10 +414,10 @@ const RoomPage = () => {
 
           <div className="absolute bottom-4 text-gray-700 p-2 rounded-lg shadow-md">
             {/* Mute Button */}
-            {muted ? (
+            {isMuted ? (
               <button
                 onClick={() => {
-                  setMuted((prev) => !prev);
+                  setIsMuted(false);
                   muteAudio();
                 }}
                 className="px-3 py-1 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
@@ -325,7 +427,7 @@ const RoomPage = () => {
             ) : (
               <button
                 onClick={() => {
-                  setMuted((prev) => !prev);
+                  setIsMuted(true);
                   unmuteAudio();
                 }}
                 className="px-3 py-1 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
@@ -335,59 +437,62 @@ const RoomPage = () => {
             )}
 
             {/* Playing Button */}
-            {playing ? (
+            {isPlaying ? (
               <button
                 onClick={() => {
-                  setPlaying((prev) => !prev);
+                  pauseVideo();
+                  setIsPlaying(false);
+                }}
+                className="px-3 py-1 ml-2 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
+              >
+                <Video size={24} />
+              </button>
+            ) : (
+
+              <button
+                onClick={() => {
                   playVideo();
+                  setIsPlaying(true);
                 }}
                 className="px-3 py-1 ml-2 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
               >
                 <VideoOff size={24} />
 
               </button>
-            ) : (
-              <button
-                onClick={() => {
-                  setPlaying((prev) => !prev);
-                  pauseVideo();
-                }}
-                className="px-3 py-1 ml-2 bg-blue-500 text-white rounded-lg shadow-md focus:outline-none"
-              >
-                <Video size={24} />
-              </button>
             )}
 
             {/* Screen Share Button */}
-            {screenSharing ? (
+            {isScreenSharing ? (
+
               <button
                 onClick={() => {
-                  toggleScreenSharing();
-                  setScreenSharing((prev) => !prev);
+                  stopScreenShare();
                 }}
                 className="px-3 py-1 ml-2 bg-red-500 text-white rounded-lg shadow-md focus:outline-none"
               >
                 <Airplay size={24} />
               </button>
             ) : (
+
               <button
                 onClick={() => {
-                  toggleScreenSharing();
-                  setScreenSharing((prev) => !prev);
+                  startScreenShare();
                 }}
                 className="px-3 py-1 ml-2 bg-green-500 text-white rounded-lg shadow-md focus:outline-none"
               >
-                <MonitorUp size={24} />
 
+                <MonitorUp size={24} />
               </button>
             )}
 
             {/* Screen Recording Button */}
 
-            {screenRecording ? (
+            {isRecording ? (
               <button
                 onClick={() => {
+                  setIsRecording(false);
                   stopRecording();
+
                 }}
                 className="px-3 py-1 ml-2 bg-red-500 text-white rounded-lg shadow-md focus:outline-none"
               >
@@ -397,6 +502,7 @@ const RoomPage = () => {
               <button
 
                 onClick={() => {
+                  setIsRecording(true);
                   startRecording();
                 }}
                 className="px-3 py-1 ml-2 bg-yellow-500 text-white rounded-lg shadow-md focus:outline-none"
