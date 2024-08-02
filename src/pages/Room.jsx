@@ -276,21 +276,21 @@ const RoomPage = () => {
     setMediaRecorder(recorder);
     recorder.startRecording();
     console.log('Recording started');
-  
+
     rStream.getTracks().forEach(track => {
       track.onended = () => {
       };
     });
   };
-  
+
   const stopRecording = () => {
     if (!mediaRecorder || !recordStream) return;
-  
+
     mediaRecorder.stopRecording(() => {
       const blob = mediaRecorder.getBlob();
       const url = URL.createObjectURL(blob);
       const dateStr = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-  
+
       Swal.fire({
         title: 'Save Recording',
         text: 'Do you want to save the recording?',
@@ -309,12 +309,12 @@ const RoomPage = () => {
         }
       });
     });
-  
+
     recordStream.getTracks().forEach(track => track.stop());
     setMediaRecorder(null);
     setRecordStream(null);
   };
-  
+
 
 
   const handleScreenShareStart = useCallback((data) => {
