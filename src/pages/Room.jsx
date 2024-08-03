@@ -50,10 +50,7 @@ const RoomPage = () => {
         [id]: call
       }))
 
-      setCalls((prevCalls) => ({
-        ...prevCalls,
-        [id]: call,
-      }));
+      setCalls(call);
 
     });
   }, [peer, stream, setPlayers, userEmail]);
@@ -82,10 +79,7 @@ const RoomPage = () => {
         [callerId]: call
       }))
 
-      setCalls((prevCalls) => ({
-        ...prevCalls,
-        [callerId]: call,
-      }));
+      setCalls(call);
 
     });
   }, [stream, setPlayers, userEmail]);

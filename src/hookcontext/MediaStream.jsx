@@ -4,8 +4,6 @@ const useMediaStream = () => {
     const [stream, setStream] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [retryCount, setRetryCount] = useState(0);
-    const maxRetries = 3; // Set a limit for retries
     const isStreamSet = useRef(false);
 
     const getMediaStream = async () => {
@@ -19,23 +17,13 @@ const useMediaStream = () => {
         } catch (err) {
             console.error('Error accessing media devices:', err);
             setError(err);
-            setLoading(false);
-
-            if (retryCount < maxRetries) {
-                setTimeout(() => {
-                    setRetryCount(retryCount + 1);
-                    setLoading(true);
-                    getMediaStream();
-                }, 3000); // Retry after 3 seconds
-            } else {
-                console.error('Max retries reached. Could not access media devices.');
-            }
+            setLoading(false)
         }
     };
 
     useEffect(() => {
         getMediaStream();
-    }, [retryCount]);
+    }, []);
 
     return { stream, loading, error };
 };
