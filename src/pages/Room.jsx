@@ -17,6 +17,7 @@ const RoomPage = () => {
   const { socket } = useSocketContext();
   const { players, setPlayers, playVideo, pauseVideo, muteAudio, unmuteAudio, screenShareON, screenShareOFF } = usePlayer({ roomId });
   const [users, setUsers] = useState([]);
+  const [calls, setCalls] = useState({});
   const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -49,6 +50,11 @@ const RoomPage = () => {
         [id]: call
       }))
 
+      setCalls((prevCalls) => ({
+        ...prevCalls,
+        [id]: call,
+      }));
+
     });
   }, [peer, stream, setPlayers, userEmail]);
 
@@ -75,6 +81,11 @@ const RoomPage = () => {
         ...prev,
         [callerId]: call
       }))
+
+      setCalls((prevCalls) => ({
+        ...prevCalls,
+        [callerId]: call,
+      }));
 
     });
   }, [stream, setPlayers, userEmail]);
@@ -190,6 +201,12 @@ const RoomPage = () => {
     console.log('User left the call:', userEmail);
 
     // Close the user's stream or connection
+    if (calls[userId]) {
+      calls[userId].close();
+      delete calls[userId];
+    }
+
+    // Close the user's stream or connection
     if (users[userId]) {
       users[userId].close();
       delete users[userId];
@@ -273,13 +290,6 @@ const RoomPage = () => {
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
 
-      const call = users[peer.id];
-      if (call) {
-        // Add the screen stream to the peer connection
-        const screenTrack = screenStream.getVideoTracks()[0];
-        call.peerConnection.addTrack(screenTrack, screenStream);
-      }
-
       screenShareON(screenStream);
       setIsScreenSharing(true);
 
@@ -300,24 +310,14 @@ const RoomPage = () => {
 
     const screenStream = players[myId]?.screenStream;
 
-    const call = users[peer.id];
-
-    if (call) {
-      // Remove the screen track from the peer connection
-      call.peerConnection.getSenders().forEach(sender => {
-        if (sender.track && sender.track.kind === 'video') {
-          call.peerConnection.removeTrack(sender);
-        }
-      });
-    }
-
-    // Stop the screen sharing stream tracks
     if (screenStream) {
       screenStream.getTracks().forEach(track => track.stop());
     }
 
+
     screenShareOFF(screenStream);
     setIsScreenSharing(false);
+
 
   };
 
@@ -326,6 +326,9 @@ const RoomPage = () => {
     console.log('User start screen share:', { userEmail });
 
     const screenStream = players[userId]?.screenStream;
+
+
+    console.log(screenStream)
 
     setPlayers(prevPlayers => ({
       ...prevPlayers,
@@ -342,6 +345,11 @@ const RoomPage = () => {
   const handleScreenShareStop = useCallback((data) => {
     const { userEmail, userId } = data;
     console.log('User stop screen share:', { userEmail });
+
+    const screenStream = players[userId]?.screenStream;
+
+    console.log(screenStream)
+
 
     setPlayers(prevPlayers => ({
       ...prevPlayers,
