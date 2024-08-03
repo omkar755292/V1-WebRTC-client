@@ -105,7 +105,7 @@ const RoomPage = () => {
     }));
 
     return () => {
-      // Clean up if needed
+
     };
   }, [stream, myId, setPlayers, userEmail]);
 
@@ -221,53 +221,6 @@ const RoomPage = () => {
     };
   }, [socket, handleMuteAudio, handleUnmuteAudio, handlePlayVideo, handlePauseVideo, handleUserLeave]);
 
-  const startScreenShare = async () => {
-    try {
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-
-      console.log(screenStream);
-
-      setPlayers((prev) => ({
-        ...prev,
-        [myId]: {
-          ...prev[myId],
-          url: screenStream,
-          playing: true
-        },
-      }));
-
-      screenShareON();
-      setIsScreenSharing(true);
-
-      screenStream.getTracks().forEach(track => {
-        track.onended = () => {
-          stopScreenShare();
-        };
-      });
-
-    } catch (error) {
-      console.error("Error starting screen share:", error);
-    }
-  };
-
-  const stopScreenShare = () => {
-    const screenStream = players[myId]?.url;
-    if (screenStream) {
-      screenStream.getTracks().forEach(track => track.stop());
-    }
-
-    setPlayers((prev) => ({
-      ...prev,
-      [myId]: {
-        ...prev[myId],
-        url: stream,
-        playing: false
-      },
-    }));
-
-    screenShareOFF();
-    setIsScreenSharing(false);
-  };
 
   const startRecording = async () => {
     const rStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
@@ -316,37 +269,67 @@ const RoomPage = () => {
   };
 
 
+  const startScreenShare = async () => {
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+
+      screenShareON(screenStream);
+      setIsScreenSharing(true);
+
+      screenStream.getTracks().forEach(track => {
+        track.onended = () => {
+          stopScreenShare();
+        };
+      });
+
+    } catch (error) {
+      console.error("Error starting screen share:", error);
+    }
+  };
+
+  const stopScreenShare = () => {
+    const screenStream = players[myId]?.screenUrl;
+    if (screenStream) {
+      screenStream.getTracks().forEach(track => track.stop());
+    }
+
+    screenShareOFF(screenStream);
+    setIsScreenSharing(false);
+  };
 
   const handleScreenShareStart = useCallback((data) => {
     const { userEmail, userId } = data;
-    console.log('User start screen share:', userEmail);
+    console.log('User start screen share:', { userEmail });
+
+    const streamUrl = players[userId].streamUrl;
 
     setPlayers((prevPlayers) => {
       const updatedPlayers = {
         ...prevPlayers,
         [userId]: {
           ...prevPlayers[userId],
+          screenUrl: streamUrl,
           screenSharing: true,
-          playing: true
+          screenPlaying: true
         }
       }
       return updatedPlayers
     })
 
-
   }, [setPlayers]);
 
   const handleScreenShareStop = useCallback((data) => {
     const { userEmail, userId } = data;
-    console.log('User stop screen share:', userEmail);
+    console.log('User stop screen share:', { userEmail });
 
     setPlayers((prevPlayers) => {
       const updatedPlayers = {
         ...prevPlayers,
         [userId]: {
           ...prevPlayers[userId],
+          screenUrl: null,
           screenSharing: false,
-          playing: false
+          screenPlaying: false
         }
       }
       return updatedPlayers
@@ -382,10 +365,11 @@ const RoomPage = () => {
           <div className="absolute top-0 left-0 w-full h-full">
             <div className="w-full flex items-center justify-center h-full relative">
               {Object.keys(players).map((playerId) => {
-                const { url, muted, playing, email } = players[playerId];
+                const { url, muted, playing, email, screenSharing, screenUrl, screenPlaying } = players[playerId];
 
                 return (
                   <div key={playerId} className="relative h-full w-full">
+
                     {playing ?
                       <div className="relative h-full w-full">
 
@@ -402,6 +386,7 @@ const RoomPage = () => {
                       </div> : <div className="flex h-full w-full items-center justify-center w-full h-full bg-gray-800 text-white text-center">
                         <span className="text-xl font-semibold">{email}</span>
                       </div>}
+
                   </div>
                 );
               })}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { usePeerContext } from './PeerContext'
 import { useSocketContext } from './SocketContext'
+import { v4 as uuid } from 'uuid';
 
 const usePlayer = ({ roomId }) => {
     const { myId } = usePeerContext()
@@ -65,12 +66,16 @@ const usePlayer = ({ roomId }) => {
     }
 
 
-    const screenShareON = () => {
+    const screenShareON = (streamUrl) => {
+
+        console.log(streamUrl);
         setPlayers((prevPlayers) => {
             const updatedPlayers = {
                 ...prevPlayers,
                 [myId]: {
                     ...prevPlayers[myId],
+                    screenUrl: streamUrl,
+                    screenPlaying: true,
                     screenSharing: true
                 }
             }
@@ -79,12 +84,16 @@ const usePlayer = ({ roomId }) => {
         socket.emit('user-screenshare-on', { myId, roomId, userEmail })
     }
 
-    const screenShareOFF = () => {
+    const screenShareOFF = (streamUrl) => {
+
+        console.log(streamUrl);
         setPlayers((prevPlayers) => {
             const updatedPlayers = {
                 ...prevPlayers,
                 [myId]: {
                     ...prevPlayers[myId],
+                    screenUrl: null,
+                    screenPlaying: false,
                     screenSharing: false
                 }
             }
