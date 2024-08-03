@@ -74,7 +74,7 @@ const usePlayer = ({ roomId }) => {
                 ...prevPlayers,
                 [myId]: {
                     ...prevPlayers[myId],
-                    screenUrl: streamUrl,
+                    screenStream: streamUrl,
                     screenPlaying: true,
                     screenSharing: true
                 }
@@ -92,7 +92,7 @@ const usePlayer = ({ roomId }) => {
                 ...prevPlayers,
                 [myId]: {
                     ...prevPlayers[myId],
-                    screenUrl: null,
+                    screenStream: null,
                     screenPlaying: false,
                     screenSharing: false
                 }

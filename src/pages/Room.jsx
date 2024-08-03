@@ -273,14 +273,23 @@ const RoomPage = () => {
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
 
+      const call = users[peer.id];
+      if (call) {
+        // Add the screen stream to the peer connection
+        const screenTrack = screenStream.getVideoTracks()[0];
+        call.peerConnection.addTrack(screenTrack, screenStream);
+      }
+
       screenShareON(screenStream);
       setIsScreenSharing(true);
 
+      // Handle end of screen sharing stream
       screenStream.getTracks().forEach(track => {
         track.onended = () => {
           stopScreenShare();
         };
       });
+
 
     } catch (error) {
       console.error("Error starting screen share:", error);
@@ -288,33 +297,45 @@ const RoomPage = () => {
   };
 
   const stopScreenShare = () => {
-    const screenStream = players[myId]?.screenUrl;
+
+    const screenStream = players[myId]?.screenStream;
+
+    const call = users[peer.id];
+
+    if (call) {
+      // Remove the screen track from the peer connection
+      call.peerConnection.getSenders().forEach(sender => {
+        if (sender.track && sender.track.kind === 'video') {
+          call.peerConnection.removeTrack(sender);
+        }
+      });
+    }
+
+    // Stop the screen sharing stream tracks
     if (screenStream) {
       screenStream.getTracks().forEach(track => track.stop());
     }
 
     screenShareOFF(screenStream);
     setIsScreenSharing(false);
+
   };
 
   const handleScreenShareStart = useCallback((data) => {
     const { userEmail, userId } = data;
     console.log('User start screen share:', { userEmail });
 
-    const streamUrl = players[userId].streamUrl;
+    const screenStream = players[userId]?.screenStream;
 
-    setPlayers((prevPlayers) => {
-      const updatedPlayers = {
-        ...prevPlayers,
-        [userId]: {
-          ...prevPlayers[userId],
-          screenUrl: streamUrl,
-          screenSharing: true,
-          screenPlaying: true
-        }
+    setPlayers(prevPlayers => ({
+      ...prevPlayers,
+      [userId]: {
+        ...prevPlayers[userId],
+        screenStream: screenStream,
+        screenSharing: true,
+        screenPlaying: true
       }
-      return updatedPlayers
-    })
+    }));
 
   }, [setPlayers]);
 
@@ -322,18 +343,15 @@ const RoomPage = () => {
     const { userEmail, userId } = data;
     console.log('User stop screen share:', { userEmail });
 
-    setPlayers((prevPlayers) => {
-      const updatedPlayers = {
-        ...prevPlayers,
-        [userId]: {
-          ...prevPlayers[userId],
-          screenUrl: null,
-          screenSharing: false,
-          screenPlaying: false
-        }
+    setPlayers(prevPlayers => ({
+      ...prevPlayers,
+      [userId]: {
+        ...prevPlayers[userId],
+        screenStream: null,
+        screenSharing: false,
+        screenPlaying: false
       }
-      return updatedPlayers
-    })
+    }));
 
 
   }, [setPlayers]);
@@ -362,17 +380,32 @@ const RoomPage = () => {
         </div>
       ) : (
         <>
-          <div className="absolute top-0 left-0 w-full h-full">
+          <div className="absolute top-0 left-0 w-full h-full z-0">
             <div className="w-full flex items-center justify-center h-full relative">
               {Object.keys(players).map((playerId) => {
-                const { url, muted, playing, email, screenSharing, screenUrl, screenPlaying } = players[playerId];
+                const { url, muted, playing, email, screenSharing, screenStream, screenPlaying } = players[playerId];
 
                 return (
-                  <div key={playerId} className="relative h-full w-full">
+                  <div key={playerId} className="relative h-full w-full z-10">
 
-                    {playing ?
-                      <div className="relative h-full w-full">
+                    {screenSharing && (
+                      <div className="absolute h-full w-full z-10">
+                        <div className="absolute text-grey-700 bg-white p-2 rounded-lg shadow-md">
+                          <span>{email}</span>
+                        </div>
+                        <ReactPlayer
+                          url={screenStream}
+                          muted={muted}
+                          playing={screenPlaying}
+                          height="100%"
+                          width="100%"
 
+                        />
+                      </div>
+                    )}
+
+                    {playing && !screenSharing && (
+                      <div className="absolute h-full w-full z-0">
                         <div className="absolute text-grey-700 bg-white p-2 rounded-lg shadow-md">
                           <span>{email}</span>
                         </div>
@@ -382,10 +415,15 @@ const RoomPage = () => {
                           playing={playing}
                           height="100%"
                           width="100%"
-                        ></ReactPlayer>
-                      </div> : <div className="flex h-full w-full items-center justify-center w-full h-full bg-gray-800 text-white text-center">
+                        />
+                      </div>
+                    )}
+
+                    {!playing && !screenSharing && (
+                      <div className="flex h-full w-full items-center justify-center bg-gray-800 text-white text-center">
                         <span className="text-xl font-semibold">{email}</span>
-                      </div>}
+                      </div>
+                    )}
 
                   </div>
                 );
@@ -393,11 +431,11 @@ const RoomPage = () => {
             </div>
           </div>
 
-          <div className="absolute bottom-4 left-4 text-gray-700 dark:text-gray-400 bg-white dark:bg-gray-700 p-2 rounded-lg shadow-md">
+          <div className="absolute bottom-4 left-4 text-gray-700 dark:text-gray-400 bg-white dark:bg-gray-700 p-2 rounded-lg shadow-md z-20">
             <span className="mr-2">Meeting Code: {roomId}</span>
           </div>
 
-          <div className="absolute bottom-4 text-gray-700 p-2 rounded-lg shadow-md">
+          <div className="absolute bottom-4 text-gray-700 p-2 rounded-lg shadow-md z-30">
             {/* Mute Button */}
             {isMuted ? (
               <button
